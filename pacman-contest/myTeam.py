@@ -106,8 +106,6 @@ class DummyAgent(CaptureAgent):
           bestDist = dist
       return bestAction
 
-
-
     '''
     You should change this in your own agent.
     '''
@@ -157,5 +155,113 @@ class DummyAgent(CaptureAgent):
     a counter or a dictionary.
     """
     return {'successorScore': 100, 'distanceToFood': -1}
+
+
+class ReaperAgent(DummyAgent):
+  def registerInitialState(self, gameState):
+    self.food = self.getFood(gameState).asList() #?????
+    self.height = gameState.data.layout.height
+    self.width = gameState.data.layout.width
+    self.SafeAndDangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
+
+    
+
+
+
+####################
+# Helper functions #
+####################
+def getSafeAndDangerousCells(gameState, height, width):
+  """
+  A location is safe if it is on a circle.
+  return:
+  (circle, not_circle) #Both are set.
+  """
+  walls = gameState.getWalls()
+  path = set()
+  for i in range(height):
+    for j in range(width):
+      if (i, j) not in walls:
+        path.add((i, j))
+  
+  #DFS one time for finding all circles.
+  d = {t:[] for t in path}
+  cur_lis = [path.pop()]
+  path.add(cur_lis[0])
+  circle = set()
+
+  while cur_lis:
+    last = cur_lis[-1]
+    has_child = False
+    for child in [(last[0]+1,last[1]), (last[0]-1,last[1]), (last[0],last[1]+1), (last[0],last[1]-1)]:
+      if child in path and child not in d[last] and (len(cur_lis)<2 or child != cur_lis[-2]):
+        has_child = True
+        d[last].append(child)
+        if child in cur_lis:
+          circle = circle.union(cur_lis[cur_lis.index(child):])
+        else:
+          cur_lis.append(child)
+        break
+    if has_child == False:
+      cur_lis.pop()
+
+  not_circle = path - circle
+  return (circle, not_circle)
+
+
+
+
+def getSafeFood(foodList, safeAndDangerousCells):
+  return 1
+
+def getDangerousFood(foodList, safeAndDangerousCells):
+  return 2
+
+
+
+####################
+# Search functions #
+####################
+def nullHeuristic(state, problem=None):
+    """
+    A heuristic function estimates the cost from the current state to the nearest
+    goal in the provided SearchProblem.  This heuristic is trivial.
+    """
+    return 0
+
+def aStarSearch(problem, heuristic=nullHeuristic):
+    """Search the node that has the lowest combined cost and heuristic first."""
+    "*** YOUR CODE HERE IF YOU WANT TO PRACTICE ***"
+    
+
+    heap = util.PriorityQueue()
+    h0 = heuristic(problem.getStartState(), problem)
+    heap.push((problem.getStartState(), 0, None, None), [h0, h0])
+    
+    closed = {}
+    best_g = {}
+    
+    while not heap.isEmpty():
+      node = heap.pop()
+      g = node[1]
+      if node[0] not in closed or g < best_g[node[0]]:
+        closed[node[0]] = [g, node[2], node[3]] #state:[g,action,father]
+        best_g[node[0]] = g
+
+        if problem.isGoalState(node[0]):
+          res = []
+          cur = node[0]
+          while closed[cur][2] != None:
+            res.append(closed[cur][1])
+            cur = closed[cur][2]
+          res = res[::-1]
+          return res
+
+        for child in problem.getSuccessors(node[0]):
+          h = heuristic(child[0],problem)
+          g2 = g + child[2]
+          heap.push((child[0], g2, child[1], node[0]), [g2+h,h])
+
+    util.raiseNotDefined()
 
 
