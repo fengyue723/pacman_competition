@@ -15,7 +15,10 @@
 from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions
+from game import Agent
+from game import Actions
 import game
+import copy
 import captureAgents
 
 #################
@@ -23,7 +26,7 @@ import captureAgents
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'DummyAgent', second = 'DummyAgent'):
+               first = 'ReaperAgent', second = 'ReaperAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -81,7 +84,7 @@ class DummyAgent(CaptureAgent):
 
   def chooseAction(self, gameState):
     """
-    Picks among actions randomly.
+    Picks among actions by scores.
     """
     actions = gameState.getLegalActions(self.index)
 
@@ -159,13 +162,179 @@ class DummyAgent(CaptureAgent):
 
 class ReaperAgent(DummyAgent):
   def registerInitialState(self, gameState):
-    self.food = self.getFood(gameState).asList() #?????
+    DummyAgent.registerInitialState(self, gameState)
+    #self.food = self.getFood(gameState) #?????
     self.height = gameState.data.layout.height
     self.width = gameState.data.layout.width
-    self.SafeAndDangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
+    self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
+    print("walls:", gameState.getWalls().asList())
+    print("height:", self.height)
+    print("width:", self.width)
+    print("safeCells:", self.safeCells)
+    #self.myPosition = gameState.getAgentPosition(self.index)
+
+
+  def chooseAction(self, gameState):
+    self.myPosition = gameState.getAgentPosition(self.index)
+    self.food = self.getFood(gameState)
+
+    self.safeFood = getSafeFood(self.food.asList(), self.safeCells)
+    self.dangerousFood = getDangerousFood(self.food.asList(), self.dangerousCells)
+    print("safefood:", self.safeFood)
+
+    enemyLocation = []
+    enemyDistance = [] #Observable oppenents distances
+    for enemy in self.getOpponents(gameState):
+      enemyPosition = gameState.getAgentPosition(enemy)
+      if enemyPosition:
+        enemyLocation.append(enemyPosition)
+        enemyDistance.append(self.getMazeDistance(self.myPosition, enemyPosition))
+    
+    if enemyDistance:
+      minOppenentDistance = min(enemyDistance)
+    else:
+      minOppenentDistance = None
 
     
+    #Decisions
+    if True:#minOppenentDistance == 1: #being chased and try to eat safe food.
+      problem = SearchSafeFoodProblem(gameState, self, enemyLocation)
+      actions = aStarSearch(problem, foodHeuristic1, self)
+      print(gameState.getAgentPosition(self.index))
+      print(actions)
+      return actions[0]
+      
 
+  
+###################
+# Problem classes #
+###################
+class SearchSafeFoodProblem:
+    """
+    A search problem associated with finding the a path that collects all of the
+    food (dots) in a Pacman game.
+
+    A search state in this problem is a tuple ( pacmanPosition, foodGrid ) where
+      pacmanPosition: a tuple (x,y) of integers specifying Pacman's position
+      foodGrid:       a Grid (see game.py) of either True or False, specifying remaining food
+    """
+    def __init__(self, startingGameState, reaperAgent, extra_walls):
+      self.start = (reaperAgent.myPosition, set(reaperAgent.safeFood))
+      self.walls = set(startingGameState.getWalls().asList() + extra_walls) #set((walls))
+      self.startingGameState = startingGameState
+      self.heuristicInfo = {} # A dictionary for the heuristic to store information
+
+    def getStartState(self):
+      return self.start
+
+    def isGoalState(self, state):
+      #print(type(state[1]))
+      #print(state)
+      return state[0] in state[1]#len(state[1]) == 0
+
+    def getSuccessors(self, state):
+        "Returns successor states, the actions they require, and a cost of 1."
+        successors = []
+        for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+            x,y = state[0]
+            dx, dy = Actions.directionToVector(direction)
+            nextx, nexty = int(x + dx), int(y + dy)
+            #print(direction, nextx, nexty)
+            if (nextx, nexty) not in self.walls:
+                nextFood = set(state[1])
+                # if (nextx, nexty) in nextFood:
+                #   nextFood.remove((nextx, nexty))
+                successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
+        return successors
+
+    def getCostOfActions(self, actions):
+        """Returns the cost of a particular sequence of actions.  If those actions
+        include an illegal move, return 999999"""
+        x,y = self.getStartState()[0]
+        cost = 0
+        for action in actions:
+            # figure out the next state and see whether it's legal
+            dx, dy = Actions.directionToVector(action)
+            x, y = int(x + dx), int(y + dy)
+            if (x, y) in self.walls:
+                return 999999
+            cost += 1
+        return cost
+
+##############
+# Heuristics # 
+##############
+def foodHeuristic1(state, problem, agent):
+    
+    position = state[0]
+    foodGrid = set(state[1])
+    if len(state) == 3 and state[2] == False:
+        return manhattanHeuristic(position, problem)
+
+    #gameState = problem.startingGameState
+
+    if len(foodGrid) == 0:
+        return 0
+    elif len(foodGrid) == 1:
+        return agent.getMazeDistance(position, foodGrid.pop())
+
+    min_d = 9999999
+    for food in foodGrid:
+      min_d = min(min_d, agent.getMazeDistance(position, food))
+
+    return min_d
+
+
+def foodHeuristic2(state, problem, agent):
+    
+    position, foodGrid = state[:2][:]
+    if len(state) == 3 and state[2] == False:
+        return manhattanHeuristic(position, problem)
+
+    #gameState = problem.startingGameState
+
+    if len(foodGrid) == 0:
+        return 0
+    elif len(foodGrid) == 1:
+        return agent.getMazeDistance(position, foodGrid.pop())
+
+    if 'table' not in problem.heuristicInfo:
+      problem.heuristicInfo['table'] = {}
+    table = problem.heuristicInfo['table']
+
+    cur_table = []
+    for food1 in foodGrid:
+      for food2 in foodGrid:
+        pointwise = tuple(sorted([food1, food2]))
+        if pointwise not in table:
+          table[pointwise] = agent.getMazeDistance(food1, food2)
+        cur_table.append((pointwise, table[pointwise]))
+
+    (p1, p2), farest = max(cur_table, key = lambda x:x[1])
+
+    l1 = agent.getMazeDistance(position, p1)
+    l2 = agent.getMazeDistance(position, p2)
+    m = min(l1, l2) + farest
+    return m
+
+def nullHeuristic(state, problem=None):
+    """
+    A heuristic function estimates the cost from the current state to the nearest
+    goal in the provided SearchProblem.  This heuristic is trivial.
+    """
+    return 0
+
+def manhattanHeuristic(position, problem, info={}):
+    "The Manhattan distance heuristic for a PositionSearchProblem"
+    xy1 = position
+    xy2 = problem.goal
+    return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
+
+def euclideanHeuristic(position, problem, info={}):
+    "The Euclidean distance heuristic for a PositionSearchProblem"
+    xy1 = position
+    xy2 = problem.goal
+    return ( (xy1[0] - xy2[0]) ** 2 + (xy1[1] - xy2[1]) ** 2 ) ** 0.5
 
 
 ####################
@@ -177,10 +346,10 @@ def getSafeAndDangerousCells(gameState, height, width):
   return:
   (circle, not_circle) #Both are set.
   """
-  walls = gameState.getWalls()
+  walls = gameState.getWalls().asList()
   path = set()
-  for i in range(height):
-    for j in range(width):
+  for i in range(width):
+    for j in range(height):
       if (i, j) not in walls:
         path.add((i, j))
   
@@ -211,32 +380,57 @@ def getSafeAndDangerousCells(gameState, height, width):
 
 
 
-def getSafeFood(foodList, safeAndDangerousCells):
-  return 1
+def getSafeFood(foodList, safeCells):
+  """
+  Return: Safe Food as List[tuple]
+  """
+  safeFood = []
+  for food in foodList:
+    if food in safeCells:
+      safeFood.append(food)
+  return safeFood
 
-def getDangerousFood(foodList, safeAndDangerousCells):
-  return 2
+def getDangerousFood(foodList, dangerousCells):
+  """
+  Return: Dangerous Food as List[tuple]
+  """
+  dangerousFood = []
+  for food in foodList:
+    if food in dangerousCells:
+      dangerousFood.append(food)
+  return dangerousFood
 
+def regionType(width, position, ifRed):
+    """
+    Input: width(int), position(x,y), ifRed(boolean)
+    Return: Bool[enemy, enemy-enemyBoundary, our, our-ourBoundary]
+    """
+    enemy, enemyBoundary, our, ourBoundary = False, False, False, False
+    boundary = int(width / 2)
+    if (position[0] < boundary and ifRed) or (position[0] >= boundary and not ifRed):
+        if position[0] == boundary-1 or position[0] == boundary:
+            ourBoundary = True
+        else:
+            our = True
+    else:
+        if position[0] == boundary-1 or position[0] == boundary:
+            enemyBoundary = True
+        else:
+            enemy = True
+    return [enemy, enemyBoundary, our, ourBoundary]
 
 
 ####################
 # Search functions #
 ####################
-def nullHeuristic(state, problem=None):
-    """
-    A heuristic function estimates the cost from the current state to the nearest
-    goal in the provided SearchProblem.  This heuristic is trivial.
-    """
-    return 0
 
-def aStarSearch(problem, heuristic=nullHeuristic):
-    """Search the node that has the lowest combined cost and heuristic first."""
-    "*** YOUR CODE HERE IF YOU WANT TO PRACTICE ***"
-    
+
+def aStarSearch(problem, heuristic, agent):
+    """Search the node that has the lowest combined cost and heuristic first."""    
 
     heap = util.PriorityQueue()
-    h0 = heuristic(problem.getStartState(), problem)
-    heap.push((problem.getStartState(), 0, None, None), [h0, h0])
+    h0 = heuristic(problem.getStartState(), problem, agent)
+    heap.push([problem.getStartState(), 0, None, None], [h0, h0])
     
     closed = {}
     best_g = {}
@@ -244,6 +438,8 @@ def aStarSearch(problem, heuristic=nullHeuristic):
     while not heap.isEmpty():
       node = heap.pop()
       g = node[1]
+      node[0] = (node[0][0], tuple(node[0][1]))
+      #print(node)
       if node[0] not in closed or g < best_g[node[0]]:
         closed[node[0]] = [g, node[2], node[3]] #state:[g,action,father]
         best_g[node[0]] = g
@@ -257,10 +453,10 @@ def aStarSearch(problem, heuristic=nullHeuristic):
           res = res[::-1]
           return res
 
-        for child in problem.getSuccessors(node[0]):
-          h = heuristic(child[0],problem)
+        for child in problem.getSuccessors((node[0][0], set(node[0][1]))):
+          h = heuristic(child[0], problem, agent)
           g2 = g + child[2]
-          heap.push((child[0], g2, child[1], node[0]), [g2+h,h])
+          heap.push([child[0], g2, child[1], node[0]], [g2+h,h])
 
     util.raiseNotDefined()
 
