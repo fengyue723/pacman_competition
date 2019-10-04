@@ -174,7 +174,8 @@ class ReaperAgent(DummyAgent):
     self.enemyWeightHistory = []
 
   def chooseAction(self, gameState):
-    if self.getPreviousObservation() and self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
+    if self.getPreviousObservation() and \
+      self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
                                           gameState.getAgentPosition(self.index))!=1:
       self.enemyWeight = 1
     elif self.enemyWeight == 3 and repeatedHistory(self.history):
@@ -281,11 +282,14 @@ class ReaperAgent(DummyAgent):
       print(actions)
       return actions[0]
     else:
-      action =  random.choice(gameState.getLegalActions(self.index))
-      self.history.append('Stop')
+      if self.history[-1] == 'Stop':
+        action =  random.choice(gameState.getLegalActions(self.index))
+      else:
+        action = 'Stop'
+      self.history.append(action)
       self.history = self.history[-6:]
-      print('Stop')
-      return 'Stop'
+      print(action)
+      return action
 
 class DefenderAgent(DummyAgent):
   """
@@ -295,43 +299,57 @@ class DefenderAgent(DummyAgent):
   def registerInitialState(self, gameState):
     DummyAgent.registerInitialState(self, gameState)
     # self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
-
+    self.minX = 0 if self.red else gameState.data.layout.width/2
+    self.maxX = gameState.data.layout.width/2-1 if self.red else gameState.data.layout.width - 1
+    self.lastTarget = list()
+  
   def chooseAction(self, gameState):
     self.myPosition = gameState.getAgentPosition(self.index)
     # Computes distance to invaders we can see
     enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
-    invaders = [invader for invader in enemies if invader.isPacman and invader.getPosition() != None]
-
-    #入侵者出现在可视范围内，开启驱逐
-    if len(invaders) > 0 and gameState.getAgentState(self.index).scaredTimer == 0:
-      distance = 999999
-      self.target = list()
-      for invader in invaders:
-        if distance > self.distancer.getDistance(self.myPosition, invader.getPosition()):
-          self.target.append(invader.getPosition())
-      problem = ChaseInvadersProblem(gameState, self)
-      return aStarSearch(problem, foodHeuristic1, self)[0]
+    enemiesInSight = [enemy for enemy in enemies if not enemy.isPacman and enemy.getPosition() != None]
+    invaders = [invader for invader in enemies if invader.isPacman]
+    invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
+    self.lastEatenFood = self.findLastEatenFood(gameState)
+    self.target = list()
     
-    #原版追着Pacman跑的defender
+    # Chase the closest invader in sight 入侵者在视野范围内
+    if len(invadersInSight) > 0 and gameState.getAgentState(self.index).scaredTimer == 0:
+      distance = 99999999
+      position = tuple()
+      for invader in invadersInSight:
+        print(self.myPosition, invader.getPosition())
+        if distance > self.distancer.getDistance(self.myPosition, invader.getPosition()):
+          distance = self.distancer.getDistance(self.myPosition, invader.getPosition())
+          position = invader.getPosition()
+      self.target.append(position)
+      print(self.target)
+      problem = ChaseInvadersProblem(gameState, self)
+      actions = aStarSearch(problem, foodHeuristic1, self)
+      return actions[0] if len(actions) > 0 else 'Stop'
+
+    # Find invaders in our land 不知道入侵者在哪，但有食物被吃了 -> 去被吃食物附近
+    if len(invadersInSight) == 0 and len(self.lastEatenFood) != 0 and gameState.getAgentState(self.index).scaredTimer == 0:
+      self.target = self.lastEatenFood
+      problem = GoToLastEatenFoodProblem(gameState, self)
+      actions = aStarSearch(problem, foodHeuristic1, self)
+      return actions[0] if len(actions) > 0 else 'Stop'
+
+    if len(invaders) == 0:    
+      self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
+      if gameState.getAgentPosition(self.index) in self.target: 
+        return 'Stop'
+      problem = GoToEntranceProblem(gameState, self)
+      actions = aStarSearch(problem, foodHeuristic1, self)
+      return actions[0] if len(actions) > 0 else 'Stop'
+
+    # baseline defender
     actions = gameState.getLegalActions(self.index)
     values = [self.evaluate(gameState, a) for a in actions]
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-
-    foodLeft = len(self.getFood(gameState).asList())
-
-    if foodLeft <= 2:
-      bestDist = 9999
-      for action in actions:
-        successor = self.getSuccessor(gameState, action)
-        pos2 = successor.getAgentPosition(self.index)
-        dist = self.getMazeDistance(self.start,pos2)
-        if dist < bestDist:
-          bestAction = action
-          bestDist = dist
-      return bestAction
-
     return random.choice(bestActions)
+
 
   def getFeatures(self, gameState, action):
     features = util.Counter()
@@ -359,11 +377,35 @@ class DefenderAgent(DummyAgent):
     return features
 
   def getWeights(self,gameState, action):
-    return {'numInvaders': -1000, 
-            'onDefense': 100, 
-            'invaderDistance': -10, 
+    return {'numInvaders': -1, 
+            'onDefense': 200, 
+            'invaderDistance': 10, 
             'stop': -100, 
-            'reverse': -2}
+            'reverse': 0}
+
+  def findLastEatenFood(self, gameState):
+    res = list()
+    if len(self.observationHistory) > 1:
+      previousState = self.getPreviousObservation()
+      previousFood = self.getFoodYouAreDefending(previousState).asList()
+      currentFood = self.getFoodYouAreDefending(gameState).asList()
+      for food in previousFood:
+        if food not in currentFood:
+          res.append(food)
+    return res
+
+  def findEntrance(self, gameState):
+    res = list()
+    if self.red:
+      boundary = {(gameState.data.layout.width/2-1, a) for a in range(gameState.data.layout.height)}
+    else:
+      boundary = {(gameState.data.layout.width/2, a) for a in range(gameState.data.layout.height)}
+    walls = set(gameState.getWalls().asList())
+    for position in boundary:
+      if position not in walls:
+        res.append(position)
+    return res
+
 
 
 
@@ -380,6 +422,104 @@ class ChaseInvadersProblem:
       pacmanPosition: a tuple (x,y) of integers specifying Pacman's position
       foodGrid:       a Grid (see game.py) of either True or False, specifying remaining food
     """
+    def __init__(self, startingGameState, defenderAgent, extra_walls=[]):
+      self.start = (defenderAgent.myPosition, set(defenderAgent.target))
+      self.walls = set(startingGameState.getWalls().asList()+extra_walls)
+      self.startingGameState = startingGameState
+      self.heuristicInfo = {} # A dictionary for the heuristic to store information
+      self.maxX = defenderAgent.maxX
+      self.minX = defenderAgent.minX
+
+    def getStartState(self):
+      return self.start
+
+    def isGoalState(self, state):
+      return state[0] in state[1]
+
+    def getSuccessors(self, state):
+        "Returns successor states, the actions they require, and a cost of 1."
+        successors = []
+        for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+            x,y = state[0]
+            dx, dy = Actions.directionToVector(direction)
+            nextx, nexty = int(x + dx), int(y + dy)
+            if (nextx, nexty) not in self.walls and nextx <= self.maxX and nextx >= self.minX:
+                nextTarget = set(state[1])
+                successors.append( ( ((nextx, nexty), nextTarget), direction, 1) )
+        return successors
+
+
+class ChaseInvadersProblem2:
+    """
+    A search problem associated with finding the a path that collects all of the
+    food (dots) in a Pacman game.
+
+    A search state in this problem is a tuple ( pacmanPosition, foodGrid ) where
+      pacmanPosition: a tuple (x,y) of integers specifying Pacman's position
+      foodGrid:       a Grid (see game.py) of either True or False, specifying remaining food
+    """
+    def __init__(self, startingGameState, defenderAgent, extra_walls=[]):
+      self.start = (defenderAgent.myPosition, set(defenderAgent.target))
+      self.walls = set(startingGameState.getWalls().asList()+extra_walls)
+      self.startingGameState = startingGameState
+      self.heuristicInfo = {} # A dictionary for the heuristic to store information
+      self.maxX = defenderAgent.maxX
+      self.minX = defenderAgent.minX
+
+    def getStartState(self):
+      return self.start
+
+    def isGoalState(self, state):
+      return state[0] in state[1]
+
+    def getSuccessors(self, state):
+        "Returns successor states, the actions they require, and a cost of 1."
+        successors = []
+        for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+            x,y = state[0]
+            dx, dy = Actions.directionToVector(direction)
+            nextx, nexty = int(x + dx), int(y + dy)
+            if (nextx, nexty) not in self.walls:
+                nextTarget = set(state[1])
+                successors.append( ( ((nextx, nexty), nextTarget), direction, 1) )
+        return successors
+
+
+class GoToLastEatenFoodProblem:
+    """
+    A search problem associated with finding the a path that collects all of the
+    food (dots) in a Pacman game.
+
+    A search state in this problem is a tuple ( pacmanPosition, foodGrid ) where
+      pacmanPosition: a tuple (x,y) of integers specifying Pacman's position
+      foodGrid:       a Grid (see game.py) of either True or False, specifying remaining food
+    """
+    def __init__(self, startingGameState, defenderAgent, extra_walls=[]):
+      self.start = (defenderAgent.myPosition, set(defenderAgent.lastEatenFood))
+      self.walls = set(startingGameState.getWalls().asList()+extra_walls)
+      self.startingGameState = startingGameState
+      self.heuristicInfo = {} # A dictionary for the heuristic to store information
+
+    def getStartState(self):
+      return self.start
+
+    def isGoalState(self, state):
+      return state[0] in state[1]
+
+    def getSuccessors(self, state):
+        "Returns successor states, the actions they require, and a cost of 1."
+        successors = []
+        for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+            x,y = state[0]
+            dx, dy = Actions.directionToVector(direction)
+            nextx, nexty = int(x + dx), int(y + dy)
+            if (nextx, nexty) not in self.walls:
+                nextTarget = set(state[1])
+                successors.append( ( ((nextx, nexty), nextTarget), direction, 1) )
+        return successors
+
+
+class GoToEntranceProblem:
     def __init__(self, startingGameState, defenderAgent, extra_walls=[]):
       self.start = (defenderAgent.myPosition, set(defenderAgent.target))
       self.walls = set(startingGameState.getWalls().asList()+extra_walls)
