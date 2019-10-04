@@ -80,7 +80,8 @@ class DummyAgent(CaptureAgent):
     '''
     Your initialization code goes here, if you need any.
     '''
-
+    
+    
 
   def chooseAction(self, gameState):
     """
@@ -103,7 +104,7 @@ class DummyAgent(CaptureAgent):
       for action in actions:
         successor = self.getSuccessor(gameState, action)
         pos2 = successor.getAgentPosition(self.index)
-        dist = self.getMazeDistance(self.start,pos2)
+        dist = self.distancer.getDistance(self.start,pos2)
         if dist < bestDist:
           bestAction = action
           bestDist = dist
@@ -148,7 +149,7 @@ class DummyAgent(CaptureAgent):
 
     if len(foodList) > 0: # This should always be True,  but better safe than sorry
       myPos = successor.getAgentState(self.index).getPosition()
-      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+      minDistance = min([self.distancer.getDistance(myPos, food) for food in foodList])
       features['distanceToFood'] = minDistance
     return features
 
@@ -172,17 +173,17 @@ class ReaperAgent(DummyAgent):
     self.enemyWeight = 1
 
   def chooseAction(self, gameState):
-    if self.getPreviousObservation() and self.getMazeDistance(self.getPreviousObservation().getAgentPosition(self.index),\
+    if self.getPreviousObservation() and self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
                                           gameState.getAgentPosition(self.index))!=1:
       self.enemyWeight = 1
-    # elif self.enemyWeight == 2 and repeatedHistory(self.history):
-    #   self.enemyWeight = 4
-    # elif self.enemyWeight == 2 and repeatedHistory(self.history):
-    #   self.enemyWeight = 3
-    # elif self.enemyWeight == 1 and repeatedHistory(self.history):
-    #   self.enemyWeight = 2
-    # elif self.enemyWeight >= 4 and repeatedHistory(self.history):
-    #   self.enemyWeight += 1
+    elif self.enemyWeight == 3 and repeatedHistory(self.history):
+      self.enemyWeight = 4
+    elif self.enemyWeight == 2 and repeatedHistory(self.history):
+      self.enemyWeight = 3
+    elif self.enemyWeight == 1 and repeatedHistory(self.history):
+      self.enemyWeight = 2
+    elif self.enemyWeight >= 4 and repeatedHistory(self.history):
+      self.enemyWeight += 1
     #print(self.enemyWeight, self.history)
 
     self.myPosition = gameState.getAgentPosition(self.index)
@@ -200,7 +201,7 @@ class ReaperAgent(DummyAgent):
       enemyPosition = gameState.getAgentPosition(enemy)
       if enemyPosition:
         enemyLocation.append(enemyPosition)
-        enemyDistance.append(self.getMazeDistance(self.myPosition, enemyPosition))
+        enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
 
     if enemyDistance:
       minOppenentDistance = min(enemyDistance)
@@ -237,45 +238,37 @@ class ReaperAgent(DummyAgent):
     #print(self.index, self.enemyWeight)
 
     #Decisions
+    
+    heuristic = foodHeuristic2 if len(self.food.asList()) < 50 else foodHeuristic1
+
+
     self.locType = regionType(self.width, self.myPosition, self.red)
-    if self.locType[2] or not minOppenentDistance: #Absolutely safe region
+    if self.locType[2] or (self.food.asList() and (not minOppenentDistance or minOppenentDistance>15)): #Absolutely safe region
+      print("eat all!")
       problem = SearchNearestProblem(gameState, self, enemyshadowLocation)
-      actions = aStarSearch(problem, foodHeuristic1, self)
-      if actions:
-        self.history.append(actions[0])
-        return actions[0]
-      else:
-        action =  random.choice(gameState.getLegalActions(self.index))
-        self.history.append(action)
-        return action
+      actions = aStarSearch(problem, heuristic, self)
 
-
-    elif len(self.food.asList()) <=0 or (gameState.getAgentState(self.index).numCarrying > 4\
-           and minOppenentDistance and minOppenentDistance<3):
+    elif len(self.food.asList())<3 or ((gameState.getAgentState(self.index).numCarrying > 4\
+          or len(self.safeFood) == 0) and minOppenentDistance and minOppenentDistance<3):
       print("going home!")
-      problem = GoHomeProblem(gameState, self, enemyLocation)
+      problem = GoHomeProblem(gameState, self, enemyLocation+enemyshadowLocation)
       actions = aStarSearch(problem, foodHeuristic1, self)
-      if actions:
-        self.history.append(actions[0])
-        self.history = self.history[-6:]
-        return actions[0]
-      else:
-        action =  random.choice(gameState.getLegalActions(self.index))
-        self.history.append(action)
-        self.history = self.history[-6:]
-        return action
 
     elif True: #minOppenentDistance==1: #being chased and try to eat safe food.
+      print('eat safe')
       problem = SearchSafeFoodProblem(gameState, self, enemyLocation+enemyshadowLocation)
-      actions = aStarSearch(problem, foodHeuristic1, self)
-      if actions:
-        self.history.append(actions[0])
-        return actions[0]
-      else:
-        action =  random.choice(gameState.getLegalActions(self.index))
-        self.history.append(action)
-        self.history = self.history[-6:]
-        return action
+      actions = aStarSearch(problem, heuristic, self)
+
+    if actions:
+      self.history.append(actions[0])
+      print(actions)
+      return actions[0]
+    else:
+      action =  random.choice(gameState.getLegalActions(self.index))
+      self.history.append(action)
+      self.history = self.history[-6:]
+      print(action)
+      return action
 
 
 
@@ -310,8 +303,8 @@ class SearchSafeFoodProblem:
           #print(direction, nextx, nexty)
           if (nextx, nexty) not in self.walls:
               nextFood = set(state[1])
-              if (nextx, nexty) in nextFood:
-                nextFood.remove((nextx, nexty))
+              # if (nextx, nexty) in nextFood:
+              #   nextFood.remove((nextx, nexty))
               successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
       return successors
 
@@ -352,18 +345,19 @@ def foodHeuristic1(state, problem, agent):
     if len(foodGrid) == 0:
         return 0
     elif len(foodGrid) == 1:
-        return agent.getMazeDistance(position, foodGrid.pop())
+        return agent.distancer.getDistance(position, foodGrid.pop())
 
     min_d = 9999999
     for food in foodGrid:
-      min_d = min(min_d, agent.getMazeDistance(position, food))
+      min_d = min(min_d, agent.distancer.getDistance(position, food))
 
     return min_d
 
 
 def foodHeuristic2(state, problem, agent):
     
-    position, foodGrid = state[:2][:]
+    position = state[0]
+    foodGrid = set(state[1])
     if len(state) == 3 and state[2] == False:
         return manhattanHeuristic(position, problem)
 
@@ -372,7 +366,7 @@ def foodHeuristic2(state, problem, agent):
     if len(foodGrid) == 0:
         return 0
     elif len(foodGrid) == 1:
-        return agent.getMazeDistance(position, foodGrid.pop())
+        return agent.distancer.getDistance(position, foodGrid.pop())
 
     if 'table' not in problem.heuristicInfo:
       problem.heuristicInfo['table'] = {}
@@ -383,13 +377,13 @@ def foodHeuristic2(state, problem, agent):
       for food2 in foodGrid:
         pointwise = tuple(sorted([food1, food2]))
         if pointwise not in table:
-          table[pointwise] = agent.getMazeDistance(food1, food2)
+          table[pointwise] = agent.distancer.getDistance(food1, food2)
         cur_table.append((pointwise, table[pointwise]))
 
     (p1, p2), farest = max(cur_table, key = lambda x:x[1])
 
-    l1 = agent.getMazeDistance(position, p1)
-    l2 = agent.getMazeDistance(position, p2)
+    l1 = agent.distancer.getDistance(position, p1)
+    l2 = agent.distancer.getDistance(position, p2)
     m = min(l1, l2) + farest
     return m
 
