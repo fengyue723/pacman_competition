@@ -1,2 +1,4 @@
-listing your group members’ student number, full name, and email, one per line. 
-sad
+870963, Peiyi Wang, peiyiw1@student.unimelb.edu.au
+937427, Shuohang Hu, shuohangh@student.unimelb.edu.au
+888216, Lixia Deng, lixiad1@student.unimelb.edu.au
+
