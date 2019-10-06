@@ -26,7 +26,7 @@ import captureAgents
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'DefenderAgent', second = 'ReaperAgent'):
+               first = 'GeneralAgent', second = 'GeneralAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -163,374 +163,346 @@ class DummyAgent(CaptureAgent):
 
 
 
-class ReaperAgent(DummyAgent):
+class GeneralAgent(DummyAgent):
   def registerInitialState(self, gameState):
     DummyAgent.registerInitialState(self, gameState)
-    self.initialPosition = gameState.getAgentPosition(self.index)
+    self.myPosition = gameState.getAgentPosition(self.index)
+    self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
+    print("index!!!:", self.index)
+    print(self.teammatePosition, (self.index+2)%4)
     self.height = gameState.data.layout.height
     self.width = gameState.data.layout.width
     self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
-    self.semiDangerousCells_depth1, self.semiDangerousCells_depth2 = getSemiDangerousCells(self.safeCells, self.dangerousCells)
     self.homeBoundaryArea = getHomeBoundaryArea(self.width, self.height, gameState.getWalls(), self.red)
-    self.history = []
-    self.enemyWeight = 2
-    self.enemyWeightHistory = []
-    self.shadowEnenmy = []
-    self.leftStep = 300
-    self.load = 20
+    self.enemyBoundaryArea = getEnemyBoundaryArea(self.width, self.height, gameState.getWalls(), self.red)
+
+    myDistance = min([self.distancer.getDistance(b, self.myPosition) for b in self.enemyBoundaryArea])
+    teammateDistance = min([self.distancer.getDistance(b, self.teammatePosition) for b in self.enemyBoundaryArea])
+
+    if myDistance < teammateDistance or (myDistance == teammateDistance and self.index>1):
+      self.label = 'ReaperAgent'
+      self.semiDangerousCells_depth1, self.semiDangerousCells_depth2 = getSemiDangerousCells(self.safeCells, self.dangerousCells)
+      self.history = []
+      self.enemyWeight = 2
+      self.enemyWeightHistory = []
+      self.shadowEnenmy = []
+      self.leftStep = 300
+      self.load = 20
+    else:
+      self.label = 'DefenderAgent'
+      self.minX = 0 if self.red else gameState.data.layout.width/2
+      self.maxX = gameState.data.layout.width/2-1 if self.red else gameState.data.layout.width - 1
+      self.walls = set(gameState.getWalls().asList())
+      self.target = list()
+      self.lastChaseTarget = list()
+
+
 
   def chooseAction(self, gameState):
-    startTime = time.time()
-    print()
-    print('Reaper new round:')
-    if self.getPreviousObservation() and \
-      self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
-                                          gameState.getAgentPosition(self.index))!=1:
-      self.enemyWeight = 2
-      self.load = self.load//2
-    elif self.enemyWeight == 3 and repeatedHistory(self.history):
-      self.enemyWeight = 4
-    elif self.enemyWeight == 2 and repeatedHistory(self.history):
-      self.enemyWeight = 3
-    elif self.enemyWeight == 1 and repeatedHistory(self.history):
-      self.enemyWeight = 2
-    elif self.enemyWeight >= 4 and repeatedHistory(self.history):
-      self.enemyWeight = min(self.enemyWeight+1, 5)
-    elif len(self.enemyWeightHistory) >5 and len(set(self.enemyWeightHistory[-6:])) == 1:
-      self.enemyWeight = max(self.enemyWeight-1, 2)
+    if self.label == 'ReaperAgent':
+      startTime = time.time()
+      print()
+      print('Reaper new round:')
+      if self.getPreviousObservation() and \
+        self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
+                                            gameState.getAgentPosition(self.index))!=1:
+        self.enemyWeight = 2
+        self.load = self.load//2
+      elif self.enemyWeight == 3 and repeatedHistory(self.history):
+        self.enemyWeight = 4
+      elif self.enemyWeight == 2 and repeatedHistory(self.history):
+        self.enemyWeight = 3
+      elif self.enemyWeight == 1 and repeatedHistory(self.history):
+        self.enemyWeight = 2
+      elif self.enemyWeight >= 4 and repeatedHistory(self.history):
+        self.enemyWeight = min(self.enemyWeight+1, 5)
+      elif len(self.enemyWeightHistory) >5 and len(set(self.enemyWeightHistory[-6:])) == 1:
+        self.enemyWeight = max(self.enemyWeight-1, 2)
 
-    self.myPosition = gameState.getAgentPosition(self.index)
-    self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
-    self.food = self.getFood(gameState)
+      self.myPosition = gameState.getAgentPosition(self.index)
+      self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
+      self.food = self.getFood(gameState)
 
-    self.safeFood = getRelevantFood(self.food.asList(), self.safeCells)
-    #self.dangerousFood = getRelevantFood(self.food.asList(), self.dangerousCells)
-    self.dangerousFood_depth1 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth1)
-    self.dangerousFood_depth2 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth2)
-    self.capsuleLocations = self.getCapsules(gameState)
-    self.capsuleMazedistance = [self.distancer.getDistance(c, self.myPosition) for c in self.capsuleLocations]
+      self.safeFood = getRelevantFood(self.food.asList(), self.safeCells)
+      #self.dangerousFood = getRelevantFood(self.food.asList(), self.dangerousCells)
+      self.dangerousFood_depth1 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth1)
+      self.dangerousFood_depth2 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth2)
+      self.capsuleLocations = self.getCapsules(gameState)
+      self.capsuleMazedistance = [self.distancer.getDistance(c, self.myPosition) for c in self.capsuleLocations]
 
-    enemyLocation = []
-    enemyDistance = [] #Observable oppenents distances
-    for enemy in self.getOpponents(gameState):
-      enemyPosition = gameState.getAgentPosition(enemy)
-      if enemyPosition:
-        enemyLocation.append(enemyPosition)
-        enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
-
-    if len(enemyLocation)<1:
-      enemyLocation = self.shadowEnenmy
-      for enemyPosition in enemyLocation:
-        enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
-    elif len(enemyLocation) == 2:
-      self.shadowEnenmy = [e for e in enemyLocation if manhattanDistance(e, self.myPosition) == 5 \
-        or manhattanDistance(e, self.myPosition) == 4 or manhattanDistance(e, self.teammatePosition) == 5 \
-        or manhattanDistance(e, self.teammatePosition) == 4]
-    elif len(enemyLocation) == 1:
-      cur_distance = manhattanDistance(enemyLocation[0], self.myPosition)
-      cur_distance2 = manhattanDistance(enemyLocation[0], self.teammatePosition)
-      if cur_distance == 5 or cur_distance == 4 or cur_distance2 == 4 or cur_distance2 == 5:
-        self.shadowEnenmy = [shadow for shadow in self.shadowEnenmy \
-          if manhattanDistance(shadow, enemyLocation[0]) > 2]
-        self.shadowEnenmy.extend(enemyLocation)
-        if len(self.shadowEnenmy)>2:
-          self.shadowEnenmy = sorted(self.shadowEnenmy, key=lambda x:manhattanDistance(x, self.myPosition))[:2]
-        enemyLocation = self.shadowEnenmy
-      else:
-        self.shadowEnenmy = [shadow for shadow in self.shadowEnenmy \
-          if manhattanDistance(shadow, enemyLocation[0]) > 2]
-        enemyLocation.extend(self.shadowEnenmy)
-
-    print("enemyLocation", enemyLocation)
-    print("shadowEnenmy", self.shadowEnenmy)
-
-
-
-    
-
-
-    if enemyDistance:
-      minOppenentDistance = min(enemyDistance)
-      # if minOppenentDistance == 2:
-      #   self.enemyWeight = max(self.enemyWeight, 2)
-      # elif minOppenentDistance == 1 and self.history[-1] == 'Stop':
-      #   self.enemyWeight = 1
-      # nearestEnemy = [a for a, v in zip(enemyLocation, enemyDistance) if v == min(enemyDistance)][0]
-
-    else:
-      minOppenentDistance = None
-    
-    self.enemyWeightHistory.append(self.enemyWeight)
-    self.enemyWeightHistory = self.enemyWeightHistory[-6:]
-
-    #Decisions
-    
-    heuristic = foodHeuristic2 if len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
-      self.food.asList() and min([self.distancer.getDistance(v, self.myPosition) \
-        for v in self.food.asList()])<11 else foodHeuristic1
-
-    print("enemyWeight:", self.enemyWeight)
-    self.locType = regionType(self.width, self.myPosition, self.red)
-    carrying = gameState.getAgentState(self.index).numCarrying
-
-    if gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>2:
-      self.safeFood.extend([e for e in enemyLocation if self.distancer.getDistance(e, self.myPosition)==1])
       enemyLocation = []
-      minOppenentDistance = None
+      enemyDistance = [] #Observable oppenents distances
+      for enemy in self.getOpponents(gameState):
+        enemyPosition = gameState.getAgentPosition(enemy)
+        if enemyPosition:
+          enemyLocation.append(enemyPosition)
+          enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
 
-    while True:
-      """
-      Going home if leftStep < Distance from home + 3
-      """
-      problem = GoHomeProblem(gameState, self, enemyLocation, self.enemyWeight)
-      actions = aStarSearch(problem, foodHeuristic1, self)
-      if not actions:
-        problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-      if self.leftStep < len(actions) + 5:
-        break
-      else:
-        goHomeActions = actions
-
-      """
-      Eat all if foodleft >2 and
-         1. In home safe region
-      or 2. No enemy insight or far away from me and numCarrying < 3
-      or 3. No safe food anymore and no food carrying and no capsules
-      or 4. Enemy scared time > 8
-      """
-      if len(self.food.asList())>2 and ( (carrying < 3 and (self.locType[2] or \
-        not minOppenentDistance or minOppenentDistance>=7)) or ( len(self.dangerousFood_depth2) == 0 and\
-          len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 and \
-            carrying == 0 and not self.capsuleLocations) or \
-              gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>8 ): 
-        print("eat all!")
-        if gameState.getAgentState(self.index).scaredTimer == 0:
-          problem = SearchNearestProblem(gameState, self, [e for e in enemyLocation if \
-            regionType(self.width, e, self.red)[0] or regionType(self.width, e, self.red)[1]], self.enemyWeight)
+      if len(enemyLocation)<1:
+        enemyLocation = self.shadowEnenmy
+        for enemyPosition in enemyLocation:
+          enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
+      elif len(enemyLocation) == 2:
+        self.shadowEnenmy = [e for e in enemyLocation if manhattanDistance(e, self.myPosition) == 5 \
+          or manhattanDistance(e, self.myPosition) == 4 or manhattanDistance(e, self.teammatePosition) == 5 \
+          or manhattanDistance(e, self.teammatePosition) == 4]
+      elif len(enemyLocation) == 1:
+        cur_distance = manhattanDistance(enemyLocation[0], self.myPosition)
+        cur_distance2 = manhattanDistance(enemyLocation[0], self.teammatePosition)
+        if cur_distance == 5 or cur_distance == 4 or cur_distance2 == 4 or cur_distance2 == 5:
+          self.shadowEnenmy = [shadow for shadow in self.shadowEnenmy \
+            if manhattanDistance(shadow, enemyLocation[0]) > 2]
+          self.shadowEnenmy.extend(enemyLocation)
+          if len(self.shadowEnenmy)>2:
+            self.shadowEnenmy = sorted(self.shadowEnenmy, key=lambda x:manhattanDistance(x, self.myPosition))[:2]
+          enemyLocation = self.shadowEnenmy
         else:
-          problem = SearchNearestProblem(gameState, self, enemyLocation, self.enemyWeight)
-        actions = aStarSearch(problem, heuristic, self)
-        if actions:
+          self.shadowEnenmy = [shadow for shadow in self.shadowEnenmy \
+            if manhattanDistance(shadow, enemyLocation[0]) > 2]
+          enemyLocation.extend(self.shadowEnenmy)
+
+      print("enemyLocation", enemyLocation)
+      print("shadowEnenmy", self.shadowEnenmy)
+
+
+
+      if enemyDistance:
+        minOppenentDistance = min(enemyDistance)
+        # if minOppenentDistance == 2:
+        #   self.enemyWeight = max(self.enemyWeight, 2)
+        # elif minOppenentDistance == 1 and self.history[-1] == 'Stop':
+        #   self.enemyWeight = 1
+        # nearestEnemy = [a for a, v in zip(enemyLocation, enemyDistance) if v == min(enemyDistance)][0]
+
+      else:
+        minOppenentDistance = None
+      
+      self.enemyWeightHistory.append(self.enemyWeight)
+      self.enemyWeightHistory = self.enemyWeightHistory[-6:]
+
+      #Decisions
+      
+      heuristic = foodHeuristic2 if len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
+        self.food.asList() and min([self.distancer.getDistance(v, self.myPosition) \
+          for v in self.food.asList()])<11 else foodHeuristic1
+
+      print("enemyWeight:", self.enemyWeight)
+      self.locType = regionType(self.width, self.myPosition, self.red)
+      carrying = gameState.getAgentState(self.index).numCarrying
+
+      if gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>2:
+        self.safeFood.extend([e for e in enemyLocation if self.distancer.getDistance(e, self.myPosition)==1])
+        enemyLocation = []
+        minOppenentDistance = None
+
+      while True:
+        """
+        Going home if leftStep < Distance from home + 3
+        """
+        problem = GoHomeProblem(gameState, self, enemyLocation, self.enemyWeight)
+        actions = aStarSearch(problem, foodHeuristic1, self)
+        if not actions:
+          problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+        if self.leftStep < len(actions) + 5:
+          print("going home!")
           break
+        else:
+          goHomeActions = actions
+
+        """
+        Eat all if foodleft >2 and
+          1. In home safe region
+        or 2. No enemy insight or far away from me and numCarrying < 3
+        or 3. No safe food anymore and no food carrying and no capsules
+        or 4. Enemy scared time > 8
+        """
+        if len(self.food.asList())>2 and ( (carrying < 3 and (self.locType[2] or \
+          not minOppenentDistance or minOppenentDistance>=10)) or ( len(self.dangerousFood_depth2) == 0 and\
+            len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 and \
+              carrying == 0 and not self.capsuleLocations) or \
+                gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>8 ): 
+          print("eat all!")
+          if gameState.getAgentState(self.index).scaredTimer == 0:
+            problem = SearchNearestProblem(gameState, self, [e for e in enemyLocation if \
+              regionType(self.width, e, self.red)[0] or regionType(self.width, e, self.red)[1]], self.enemyWeight)
+          else:
+            problem = SearchNearestProblem(gameState, self, enemyLocation, self.enemyWeight)
+          actions = aStarSearch(problem, heuristic, self)
+          if actions:
+            break
 
 
-      """
-      Eat Capsules if having capsules and one of
-      1. Near capsule and near oppenents, and nearer capsule than oppenents.
-      2. enmeyDistance < 10 and all danger food
-      3. enmeyDistance < 5 and no d1 food
-      4. enmeyDistance < 3 and no safe food
-      """
-      if time.time() - startTime > 0.8:
-        print("Timeout, skip eating capsule")
-        break
-      if self.capsuleLocations:
-        nearestCapsuleLoc, nearestCapsuleDis = min(zip(self.capsuleLocations, self.capsuleMazedistance), key=lambda x: x[1])
-        if (minOppenentDistance and minOppenentDistance< 6 and nearestCapsuleDis<6 \
-          and nearestCapsuleDis<=min([self.distancer.getDistance(nearestCapsuleLoc, e) for e in enemyLocation])) \
-            or ( minOppenentDistance and minOppenentDistance< 10 and len(self.dangerousFood_depth2) == 0 and\
-          len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 ) or (minOppenentDistance and minOppenentDistance<5 \
-            and len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0) or (minOppenentDistance and minOppenentDistance<3 \
-              and len(self.safeFood) == 0):
-          print("eat capsule!")
-          problem = SearchCapsuleProblem_depth2(gameState, self, enemyLocation, self.enemyWeight)
+        """
+        Eat Capsules if having capsules and one of
+        1. Near capsule and near oppenents, and nearer capsule than oppenents.
+        2. enmeyDistance < 10 and all danger food
+        3. enmeyDistance < 5 and no d1 food
+        4. enmeyDistance < 3 and no safe food
+        """
+        if time.time() - startTime > 0.8:
+          print("Timeout, skip eating capsule")
+          break
+        if self.capsuleLocations:
+          nearestCapsuleLoc, nearestCapsuleDis = min(zip(self.capsuleLocations, self.capsuleMazedistance), key=lambda x: x[1])
+          if (minOppenentDistance and minOppenentDistance< 6 and nearestCapsuleDis<6 \
+            and nearestCapsuleDis<=min([self.distancer.getDistance(nearestCapsuleLoc, e) for e in enemyLocation])) \
+              or ( minOppenentDistance and minOppenentDistance< 10 and len(self.dangerousFood_depth2) == 0 and\
+            len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 ) or (minOppenentDistance and minOppenentDistance<5 \
+              and len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0) or (minOppenentDistance and minOppenentDistance<3 \
+                and len(self.safeFood) == 0):
+            print("eat capsule!")
+            problem = SearchCapsuleProblem_depth2(gameState, self, enemyLocation, self.enemyWeight)
+            actions = aStarSearch(problem, foodHeuristic1, self)
+            if actions:
+              break
+            
+
+        
+        if time.time() - startTime > 0.8:
+          print("Timeout, skip eating Danger_depth2")
+          break
+        """
+        Eat Danger_depth2 if foodleft > 2 and carry <= 10 and one of:
+        1. no enemy insight
+        2. enmeyDistance >= 5
+        3. no more Safer foods and no food carrying and no capsules
+        """
+        if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
+          minOppenentDistance>=5 or ( len(self.dangerousFood_depth1) == 0 and \
+            len(self.safeFood) == 0 and carrying == 0 ) ):
+          print("eat danger2!")
+          problem = SearchDangerProblem_depth2(gameState, self, enemyLocation, self.enemyWeight)
           actions = aStarSearch(problem, foodHeuristic1, self)
           if actions:
             break
-          
 
-      
-      if time.time() - startTime > 0.8:
-        print("Timeout, skip eating Danger_depth2")
-        break
-      """
-      Eat Danger_depth2 if foodleft > 2 and carry <= 10 and one of:
-      1. no enemy insight
-      2. enmeyDistance >= 5
-      3. no more Safer foods and no food carrying and no capsules
-      """
-      if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
-        minOppenentDistance>=5 or ( len(self.dangerousFood_depth1) == 0 and \
-          len(self.safeFood) == 0 and carrying == 0 ) ):
-        print("eat danger2!")
-        problem = SearchDangerProblem_depth2(gameState, self, enemyLocation, self.enemyWeight)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-        if actions:
+
+        if time.time() - startTime > 0.8:
+          print("Timeout, skip eating Danger_depth1")
           break
+        """
+        Eat Danger_depth1 if foodleft > 2 and carry <= 10 and one of:
+        1. no enemy insight
+        2. enmeyDistance >= 3
+        3. no more Safer foods and no food carrying
+        """
+        if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
+          minOppenentDistance>=3 or (len(self.safeFood) == 0 and carrying == 0) ):
+          print("eat danger1!")
+          problem = SearchDangerProblem_depth1(gameState, self, enemyLocation, self.enemyWeight)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+          if actions:
+            break
 
-
-      if time.time() - startTime > 0.8:
-        print("Timeout, skip eating Danger_depth1")
-        break
-      """
-      Eat Danger_depth1 if foodleft > 2 and carry <= 10 and one of:
-      1. no enemy insight
-      2. enmeyDistance >= 3
-      3. no more Safer foods and no food carrying
-      """
-      if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
-        minOppenentDistance>=3 or (len(self.safeFood) == 0 and carrying == 0) ):
-        print("eat danger1!")
-        problem = SearchDangerProblem_depth1(gameState, self, enemyLocation, self.enemyWeight)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-        if actions:
+        if time.time() - startTime > 0.9:
+          print("Timeout, skip eating safe")
           break
+        """
+        Eat safe if foodleft > 2 and one of:
+        1. food carrying < max(left safefood, 10)
+        """
+        if len(self.food.asList())>2 and carrying < max(min(len(self.safeFood), self.load), 3):
+          print('eat safe!')
+          problem = SearchSafeFoodProblem(gameState, self, enemyLocation, self.enemyWeight)
+          actions = aStarSearch(problem, heuristic, self)
+          if actions:
+            break
 
-      if time.time() - startTime > 0.9:
-        print("Timeout, skip eating safe")
+        print("going home!")
+        actions = goHomeActions
         break
-      """
-      Eat safe if foodleft > 2 and one of:
-      1. food carrying < max(left safefood, 10)
-      """
-      if len(self.food.asList())>2 and carrying < max(min(len(self.safeFood), self.load), 3):
-        print('eat safe!')
-        problem = SearchSafeFoodProblem(gameState, self, enemyLocation, self.enemyWeight)
-        actions = aStarSearch(problem, heuristic, self)
-        if actions:
-          break
 
-      print("going home!")
-      actions = goHomeActions
-      break
-
-    if actions:
-      self.history.append(actions[0])
-      print(actions)
-      self.leftStep -= 1
-      return actions[0]
-    else:
-      if self.history[-1] == 'Stop':
-        action =  random.choice(gameState.getLegalActions(self.index))
+      if actions:
+        self.history.append(actions[0])
+        print(actions)
+        self.leftStep -= 1
+        return actions[0]
       else:
-        action = 'Stop'
-      self.history.append(action)
-      self.history = self.history[-12:]
-      print(action)
-      self.leftStep -= 1
-      return action
-
-class DefenderAgent(DummyAgent):
-  """
-  Agent mainly in charge of denfending our food
-  """
-
-  def registerInitialState(self, gameState):
-    DummyAgent.registerInitialState(self, gameState)
-    self.minX = 0 if self.red else gameState.data.layout.width/2
-    self.maxX = gameState.data.layout.width/2-1 if self.red else gameState.data.layout.width - 1
-    self.walls = set(gameState.getWalls().asList())
-    self.target = list()
-    self.lastChaseTarget = list()
-
-    self.height = gameState.data.layout.height
-    self.width = gameState.data.layout.width
-    self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
-  
-  def chooseAction(self, gameState):
-    print()
-    print('Defender new round:')
-    self.myPosition = gameState.getAgentPosition(self.index)
-    # Computes distance to invaders we can see
-    enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
-    enemiesInSight = [enemy for enemy in enemies if not enemy.isPacman and enemy.getPosition() != None]
-
-    invaders = [invader for invader in enemies if invader.isPacman]
-    invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
-    invadersLocation = [invader.getPosition() for invader in invadersInSight]
-    closestInvaderDistance = self.findInvaderDistance(gameState, invadersLocation) # an integer
-
-    self.lastEatenFood = self.findLastEatenFood(gameState)
-    self.target = list()
-
-    if self.myPosition in self.lastChaseTarget:
-      self.lastChaseTarget.clear()
-
-    if len(invaders) > 0:
-      print('invaders:' + str(len(invaders)))
-      # Chase the closest invader in sight 入侵者在视野范围内且自己不是白鬼
-      if len(invadersInSight) > 0 and ( gameState.getAgentState(self.index).scaredTimer == 0 or closestInvaderDistance > 2):
-        distance = 99999999
-        position = tuple()
-        for invader in invadersInSight:
-          if distance > self.distancer.getDistance(self.myPosition, invader.getPosition()):
-            distance = self.distancer.getDistance(self.myPosition, invader.getPosition())
-            position = invader.getPosition()
-        self.target.append(position)
-        self.lastChaseTarget = self.target
-        problem = GoToProblem(gameState, self)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-        return actions[0] if len(actions) > 0 else 'Stop'
-      
-      # 入侵者在视野范围内但自己是白鬼
-      # 距离 == 1，把invader的格子设成墙
-      # 距离 == 2，把invader周围距离为1的格子设成墙
-      if len(invadersInSight) > 0 and gameState.getAgentState(self.index).scaredTimer > 0 and closestInvaderDistance <= 2:
-        print('scared distance <= 2' + str(closestInvaderDistance))
-        if closestInvaderDistance == 2:
-          return 'Stop'
-        if closestInvaderDistance == 1 and self.myPosition in self.safeCells:
-          actions = self.getLegalActionsScared(gameState, invadersLocation)
-          print('ghost actions' + str(actions))
-          values = [self.evaluateScared(gameState, a) for a in actions]
-          maxValue = max(values)
-          bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-          return random.choice(bestActions) if len(bestActions) > 0 else 'Stop'
+        if self.history[-1] == 'Stop':
+          action =  random.choice(gameState.getLegalActions(self.index))
         else:
-          boundary = self.findEntrance(gameState)
-          if self.myPosition in boundary:
-            print('gtmd')
-            return random.choice(gameState.getLegalActions(self.index))
-          else:
-            self.target = boundary
-            problem = GoToProblem(gameState, self, invadersLocation)
-            actions = aStarSearch(problem, foodHeuristic1, self)
-            return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
+          action = 'Stop'
+        self.history.append(action)
+        self.history = self.history[-12:]
+        print(action)
+        self.leftStep -= 1
+        return action
+    #Agent mainly in charge of denfending our food
+    else:
+      print()
+      print('Defender new round:')
+      self.myPosition = gameState.getAgentPosition(self.index)
+      # Computes distance to invaders we can see
+      enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+      enemiesInSight = [enemy for enemy in enemies if not enemy.isPacman and enemy.getPosition() != None]
+
+      invaders = [invader for invader in enemies if invader.isPacman]
+      invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
+      invadersLocation = [invader.getPosition() for invader in invadersInSight]
+      closestInvaderDistance = self.findInvaderDistance(gameState, invadersLocation) # an integer
+
+      self.lastEatenFood = self.findLastEatenFood(gameState)
+      self.target = list()
+
+      if self.myPosition in self.lastChaseTarget:
+        self.lastChaseTarget.clear()
+
+      if len(invaders) > 0:
+        print('invaders:' + str(len(invaders)))
+        # Chase the closest invader in sight 入侵者在视野范围内且自己不是白鬼
+        if len(invadersInSight) > 0 and ( gameState.getAgentState(self.index).scaredTimer == 0 or closestInvaderDistance > 2):
+          distance = 99999999
+          position = tuple()
+          for invader in invadersInSight:
+            if distance > self.distancer.getDistance(self.myPosition, invader.getPosition()):
+              distance = self.distancer.getDistance(self.myPosition, invader.getPosition())
+              position = invader.getPosition()
+          self.target.append(position)
+          self.lastChaseTarget = self.target
+          problem = GoToProblem(gameState, self)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+          return actions[0] if len(actions) > 0 else 'Stop'
         
-      # Find invaders in our land 不知道入侵者在哪，但有食物被吃了 -> 去被吃食物附近
-      if len(invadersInSight) == 0 and len(self.lastEatenFood) != 0 and gameState.getAgentState(self.index).scaredTimer == 0:
-        self.target = self.lastEatenFood
-        self.lastChaseTarget = self.target
-        problem = GoToProblem(gameState, self)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-        return actions[0] if len(actions) > 0 else 'Stop'
+        # 入侵者在视野范围内但自己是白鬼
+        # 距离 == 1，把invader的格子设成墙
+        # 距离 == 2，把invader周围距离为1的格子设成墙
+        if len(invadersInSight) > 0 and gameState.getAgentState(self.index).scaredTimer > 0 and closestInvaderDistance <= 2:
+          print('scared distance <= 2' + str(closestInvaderDistance))
+          if closestInvaderDistance == 2:
+            return 'Stop'
+          if closestInvaderDistance == 1 and self.myPosition in self.safeCells:
+            actions = self.getLegalActionsScared(gameState, invadersLocation)
+            print('ghost actions' + str(actions))
+            values = [self.evaluateScared(gameState, a) for a in actions]
+            maxValue = max(values)
+            bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+            return random.choice(bestActions) if len(bestActions) > 0 else 'Stop'
+          else:
+            boundary = self.findEntrance(gameState)
+            if self.myPosition in boundary:
+              print('gtmd')
+              return random.choice(gameState.getLegalActions(self.index))
+            else:
+              self.target = boundary
+              problem = GoToProblem(gameState, self, invadersLocation)
+              actions = aStarSearch(problem, foodHeuristic1, self)
+              return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
+          
+        # Find invaders in our land 不知道入侵者在哪，但有食物被吃了 -> 去被吃食物附近
+        if len(invadersInSight) == 0 and len(self.lastEatenFood) != 0 and gameState.getAgentState(self.index).scaredTimer == 0:
+          self.target = self.lastEatenFood
+          self.lastChaseTarget = self.target
+          problem = GoToProblem(gameState, self)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+          return actions[0] if len(actions) > 0 else 'Stop'
 
-      if len(self.target) == 0 and len(self.lastChaseTarget) > 0:
-        self.target = self.lastChaseTarget
-        problem = GoToProblem(gameState, self)
-        actions = aStarSearch(problem, foodHeuristic1, self)
-        return actions[0] if len(actions) > 0 else 'Stop'
+        if len(self.target) == 0 and len(self.lastChaseTarget) > 0:
+          self.target = self.lastChaseTarget
+          problem = GoToProblem(gameState, self)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+          return actions[0] if len(actions) > 0 else 'Stop'
 
-      self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
-      if gameState.getAgentPosition(self.index) in self.target: 
-        return 'Stop'
-      problem = GoToProblem(gameState, self)
-      actions = aStarSearch(problem, foodHeuristic1, self)
-      return actions[0] if len(actions) > 0 else 'Stop'
-
-    if len(invaders) == 0:
-      print('invaders:' + str(len(invaders)))
-      if len(enemiesInSight) > 0:
-        print('enemiesInSight:' + str(len(enemiesInSight)))
-        tempActions = self.getLegalActionsNoCrossing(gameState)
-        distance = 9999999
-        res = list()
-        for action in tempActions:
-          successor = self.getSuccessor(gameState, action)
-          for enemy in enemiesInSight:
-            cur = self.distancer.getDistance(successor.getAgentPosition(self.index), enemy.getPosition())
-            if distance > cur:
-              distance = cur
-              res.clear()
-              res.append(action)
-            if distance == cur:
-              res.append(action)
-        print(res)
-        return random.choice(res)
-
-      else:
-        print('enemiesInSight:' + str(len(enemiesInSight)))
         self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
         if gameState.getAgentPosition(self.index) in self.target: 
           return 'Stop'
@@ -538,12 +510,41 @@ class DefenderAgent(DummyAgent):
         actions = aStarSearch(problem, foodHeuristic1, self)
         return actions[0] if len(actions) > 0 else 'Stop'
 
-    # baseline defender
-    actions = gameState.getLegalActions(self.index)
-    values = [self.evaluate(gameState, a) for a in actions]
-    maxValue = max(values)
-    bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-    return random.choice(bestActions)
+      if len(invaders) == 0:
+        print('invaders:' + str(len(invaders)))
+        if len(enemiesInSight) > 0:
+          print('enemiesInSight:' + str(len(enemiesInSight)))
+          tempActions = self.getLegalActionsNoCrossing(gameState)
+          distance = 9999999
+          res = list()
+          for action in tempActions:
+            successor = self.getSuccessor(gameState, action)
+            for enemy in enemiesInSight:
+              cur = self.distancer.getDistance(successor.getAgentPosition(self.index), enemy.getPosition())
+              if distance > cur:
+                distance = cur
+                res.clear()
+                res.append(action)
+              if distance == cur:
+                res.append(action)
+          print(res)
+          return random.choice(res)
+
+        else:
+          print('enemiesInSight:' + str(len(enemiesInSight)))
+          self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
+          if gameState.getAgentPosition(self.index) in self.target: 
+            return 'Stop'
+          problem = GoToProblem(gameState, self)
+          actions = aStarSearch(problem, foodHeuristic1, self)
+          return actions[0] if len(actions) > 0 else 'Stop'
+
+      # baseline defender
+      actions = gameState.getLegalActions(self.index)
+      values = [self.evaluate(gameState, a) for a in actions]
+      maxValue = max(values)
+      bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+      return random.choice(bestActions)
 
   def evaluateScared(self, gameState, action):
     """
@@ -661,6 +662,11 @@ class DefenderAgent(DummyAgent):
       if curDis < distance:
         distance = curDis
     return distance
+
+
+
+
+
 
   
 ###################
@@ -1042,6 +1048,18 @@ def getHomeBoundaryArea(width, height, walls, isRed):
     if not walls[x][i]:
       homeBoundaryArea.append((x, i))
   return homeBoundaryArea
+
+def getEnemyBoundaryArea(width, height, walls, isRed):
+  if isRed:
+    x = int(width/2)
+  else:
+    x = int(width/2)-1
+  enemyBoundaryArea = []
+  for i in range(height):
+    if not walls[x][i]:
+      enemyBoundaryArea.append((x, i))
+  return enemyBoundaryArea
+
 
 def manhattanDistance(xy1, xy2):
     return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
