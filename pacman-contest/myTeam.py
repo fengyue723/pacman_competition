@@ -625,7 +625,7 @@ class DefenderAgent(DummyAgent):
 
   def getLegalActionsScared(self, gameState, extra_walls):
     actions = list()
-    walls = self.walls + set(extra_walls)  
+    walls = self.walls | set(extra_walls)  
     for direction in gameState.getLegalActions(self.index):
       x, y = gameState.getAgentPosition(self.index)
       dx, dy = Actions.directionToVector(direction)
