@@ -282,7 +282,7 @@ class ReaperAgent(DummyAgent):
     #Decisions
     
     heuristic = foodHeuristic2 if len(self.food.asList()) < 50 and self.food.asList() and \
-      min([self.distancer.getDistance(v, self.myPosition) for v in self.food.asList()])<1 else foodHeuristic1
+      min([self.distancer.getDistance(v, self.myPosition) for v in self.food.asList()])<11 else foodHeuristic1
 
     print("enemyWeight:", self.enemyWeight)
     self.locType = regionType(self.width, self.myPosition, self.red)
@@ -342,7 +342,7 @@ class ReaperAgent(DummyAgent):
       Eat Danger_depth1 if foodleft > 2 and one of:
       1. food carrying < max(left safefood, 5)
       """
-      if len(self.food.asList())>2 and carrying < max(len(self.safeFood), 5):
+      if len(self.food.asList())>2 and carrying < max(min(len(self.safeFood), 15), 5):
         print('eat safe!')
         problem = SearchSafeFoodProblem(gameState, self, enemyLocation, self.enemyWeight)
         actions = aStarSearch(problem, heuristic, self)
@@ -352,6 +352,10 @@ class ReaperAgent(DummyAgent):
       print("going home!")
       problem = GoHomeProblem(gameState, self, enemyLocation, self.enemyWeight)
       actions = aStarSearch(problem, foodHeuristic1, self)
+      if not actions:
+        problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
+        actions = aStarSearch(problem, foodHeuristic1, self)
+
       break
 
     if actions:
