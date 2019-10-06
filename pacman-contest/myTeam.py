@@ -472,12 +472,13 @@ class DefenderAgent(DummyAgent):
           bestActions = [a for a, v in zip(actions, values) if v == maxValue]
           return random.choice(bestActions) if len(bestActions) > 1 else 'Stop'
         if closestInvaderDistance == 2:
-          extra_walls = self.findExtraWalls(invadersLocation)
-          actions = self.getLegalActionsScared(gameState, extra_walls)
-          values = [self.evaluateScared(gameState, a) for a in actions]
-          maxValue = max(values)
-          bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-          return random.choice(bestActions) if len(bestActions) > 1 else 'Stop'
+          # extra_walls = self.findExtraWalls(invadersLocation)
+          # actions = self.getLegalActionsScared(gameState, extra_walls)
+          # values = [self.evaluateScared(gameState, a) for a in actions]
+          # maxValue = max(values)
+          # bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+          # return random.choice(bestActions) if len(bestActions) > 1 else 'Stop'
+          return 'Stop'
         
       # Find invaders in our land 不知道入侵者在哪，但有食物被吃了 -> 去被吃食物附近
       if len(invadersInSight) == 0 and len(self.lastEatenFood) != 0 and gameState.getAgentState(self.index).scaredTimer == 0:
@@ -624,7 +625,7 @@ class DefenderAgent(DummyAgent):
 
   def getLegalActionsScared(self, gameState, extra_walls):
     actions = list()
-    walls = self.walls + extra_walls  
+    walls = self.walls + set(extra_walls)  
     for direction in gameState.getLegalActions(self.index):
       x, y = gameState.getAgentPosition(self.index)
       dx, dy = Actions.directionToVector(direction)
@@ -649,7 +650,7 @@ class DefenderAgent(DummyAgent):
     for location in invadersLocation:
       curDis = self.distancer.getDistance(self.myPosition, location)
       if curDis < distance:
-        curDis = distance
+        distance = curDis
     return distance
 
   
