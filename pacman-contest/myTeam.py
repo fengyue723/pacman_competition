@@ -201,8 +201,8 @@ class ReaperAgent(DummyAgent):
     #self.dangerousFood = getRelevantFood(self.food.asList(), self.dangerousCells)
     self.dangerousFood_depth1 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth1)
     self.dangerousFood_depth2 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth2)
-
-    
+    self.capsuleLocations = self.getCapsules(gameState)
+    self.capsuleMazedistance = [self.distancer.getDistance(c, self.myPosition) for c in self.capsuleLocations]
 
     enemyLocation = []
     enemyDistance = [] #Observable oppenents distances
@@ -266,6 +266,9 @@ class ReaperAgent(DummyAgent):
     print("enemyWeight:", self.enemyWeight)
     self.locType = regionType(self.width, self.myPosition, self.red)
     carrying = gameState.getAgentState(self.index).numCarrying
+
+    if gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>2:
+      enemyLocation = []
 
     while True:
       """
