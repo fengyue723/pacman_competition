@@ -436,11 +436,13 @@ class GeneralAgent(DummyAgent):
       # Computes distance to invaders we can see
       enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
       enemiesInSight = [enemy for enemy in enemies if not enemy.isPacman and enemy.getPosition() != None]
+      enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
+      closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else -1
 
       invaders = [invader for invader in enemies if invader.isPacman]
       invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
       invadersLocation = [invader.getPosition() for invader in invadersInSight]
-      closestInvaderDistance = self.findInvaderDistance(gameState, invadersLocation) # an integer
+      closestInvaderDistance = self.findClosestDistance(gameState, invadersLocation) # an integer
 
       self.lastEatenFood = self.findLastEatenFood(gameState)
       self.target = list()
@@ -514,6 +516,11 @@ class GeneralAgent(DummyAgent):
         print('invaders:' + str(len(invaders)))
         if len(enemiesInSight) > 0:
           print('enemiesInSight:' + str(len(enemiesInSight)))
+          if closestEnemyDistance > 2 and self.myPosition in self.findEntrance(gameState):
+            if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
+              return 'East'
+            elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
+              return 'West'
           tempActions = self.getLegalActionsNoCrossing(gameState)
           distance = 9999999
           res = list()
@@ -534,7 +541,12 @@ class GeneralAgent(DummyAgent):
           print('enemiesInSight:' + str(len(enemiesInSight)))
           self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
           if gameState.getAgentPosition(self.index) in self.target: 
-            return 'Stop'
+            if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
+              return 'East'
+            elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
+              return 'West'
+            else:
+              return 'Stop'
           problem = GoToProblem(gameState, self)
           actions = aStarSearch(problem, foodHeuristic1, self)
           return actions[0] if len(actions) > 0 else 'Stop'
@@ -655,7 +667,7 @@ class GeneralAgent(DummyAgent):
       walls.append((location[0], location[1]+1))
     return walls
 
-  def findInvaderDistance(self, gameState, invadersLocation):
+  def findClosestDistance(self, gameState, invadersLocation):
     distance = 999999
     for location in invadersLocation:
       curDis = self.distancer.getDistance(self.myPosition, location)
