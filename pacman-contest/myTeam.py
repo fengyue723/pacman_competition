@@ -335,7 +335,6 @@ class GeneralAgent(DummyAgent):
           if actions:
             break
 
-
         """
         Eat Capsules if having capsules and one of
         1. Near capsule and near oppenents, and nearer capsule than oppenents.
