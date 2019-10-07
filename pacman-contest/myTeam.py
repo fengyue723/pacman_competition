@@ -217,7 +217,7 @@ class GeneralAgent(DummyAgent):
       elif self.enemyWeight >= 4 and repeatedHistory(self.history):
         self.enemyWeight = min(self.enemyWeight+1, 5)
       elif len(self.enemyWeightHistory) >5 and len(set(self.enemyWeightHistory[-6:])) == 1:
-        self.enemyWeight = max(self.enemyWeight-1, 2)
+        self.enemyWeight = max(self.enemyWeight-1, 2) if self.enemyWeight != 5 else 2
 
       self.myPosition = gameState.getAgentPosition(self.index)
       self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
@@ -906,6 +906,7 @@ def foodHeuristic1(state, problem, agent):
 
 
 def foodHeuristic2(state, problem, agent):
+
     
     position = state[0]
     foodGrid = set(state[1])
@@ -923,20 +924,24 @@ def foodHeuristic2(state, problem, agent):
       problem.heuristicInfo['table'] = {}
     table = problem.heuristicInfo['table']
 
-    cur_table = []
+    cur_table = util.PriorityQueue()
     for food1 in foodGrid:
       for food2 in foodGrid:
         pointwise = tuple(sorted([food1, food2]))
         if pointwise not in table:
           table[pointwise] = agent.distancer.getDistance(food1, food2)
-        cur_table.append((pointwise, table[pointwise]))
+        cur_table.push((pointwise, table[pointwise]), -table[pointwise])
 
-    (p1, p2), farest = max(cur_table, key = lambda x:x[1])
+    min_distance = 99999
+    i = 6
+    while cur_table and i>0:
+      (p1, p2), _ = cur_table.pop()
+      l1 = agent.distancer.getDistance(position, p1)
+      l2 = agent.distancer.getDistance(position, p2)
+      min_distance = min((min_distance, l1, l2))
+      i -= 1
 
-    l1 = agent.distancer.getDistance(position, p1)
-    l2 = agent.distancer.getDistance(position, p2)
-    m = min(l1, l2) + farest
-    return m
+    return min_distance
 
 def nullHeuristic(state, problem=None):
     """
