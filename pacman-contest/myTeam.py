@@ -175,19 +175,19 @@ class GeneralAgent(DummyAgent):
     self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
     self.homeBoundaryArea = getHomeBoundaryArea(self.width, self.height, gameState.getWalls(), self.red)
     self.enemyBoundaryArea = getEnemyBoundaryArea(self.width, self.height, gameState.getWalls(), self.red)
-
+    self.semiDangerousCells_depth1, self.semiDangerousCells_depth2 = getSemiDangerousCells(self.safeCells, self.dangerousCells)
+    self.history = []
+    self.enemyWeight = 2
+    self.enemyWeightHistory = []
+    self.shadowEnenmy = []
+    self.leftStep = 300
+    self.load = 20
+    
     myDistance = min([self.distancer.getDistance(b, self.myPosition) for b in self.enemyBoundaryArea])
     teammateDistance = min([self.distancer.getDistance(b, self.teammatePosition) for b in self.enemyBoundaryArea])
 
     if myDistance < teammateDistance or (myDistance == teammateDistance and self.index>1):
       self.label = 'ReaperAgent'
-      self.semiDangerousCells_depth1, self.semiDangerousCells_depth2 = getSemiDangerousCells(self.safeCells, self.dangerousCells)
-      self.history = []
-      self.enemyWeight = 2
-      self.enemyWeightHistory = []
-      self.shadowEnenmy = []
-      self.leftStep = 300
-      self.load = 20
     else:
       self.label = 'DefenderAgent'
       self.minX = 0 if self.red else gameState.data.layout.width/2
@@ -201,11 +201,20 @@ class GeneralAgent(DummyAgent):
   def chooseAction(self, gameState):
     print()
     print(gameState.data.timeleft)
-    if self.label == 'ReaperAgent':
+    self.myPosition = gameState.getAgentPosition(self.index)
+    self.locType = regionType(self.width, self.myPosition, self.red)
+    if self.label == 'DefenderAgent':
+      if gameState.getAgentState(self.index).scaredTimer>1 and (self.locType[1] or self.locType[3]):
+        self.label = 'TempReaperAgent'
+        self.tempReaperStep = gameState.getAgentState(self.index).scaredTimer
+        self.tempReaperLoad = 50
+    elif self.label == 'TempReaperAgent':
+      if self.tempReaperStep <= 1:
+        self.label = 'DefenderAgent'
+
+    if self.label == 'ReaperAgent' or self.label == 'TempReaperAgent':
       startTime = time.time()
       print('Reaper new round:')
-      
-      self.myPosition = gameState.getAgentPosition(self.index)
       self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
       self.food = self.getFood(gameState)
 
@@ -293,7 +302,6 @@ class GeneralAgent(DummyAgent):
           for v in self.food.asList()])<11 ) and self.enemyWeight < 5 else foodHeuristic1
 
       print("enemyWeight:", self.enemyWeight)
-      self.locType = regionType(self.width, self.myPosition, self.red)
       carrying = gameState.getAgentState(self.index).numCarrying
 
 
@@ -431,16 +439,23 @@ class GeneralAgent(DummyAgent):
         self.history = self.history[-12:]
         print(action)
         self.leftStep -= 1
+        if self.label == 'TempReaperAgent':
+          self.tempReaperStep -= 1
         return action
     #Agent mainly in charge of denfending our food
     else:
       print('Defender new round:')
-      self.myPosition = gameState.getAgentPosition(self.index)
       # Computes distance to invaders we can see
       enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
       enemiesInSight = [enemy for enemy in enemies if not enemy.isPacman and enemy.getPosition() != None]
       enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
       closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else -1
+
+      #突然醒来，发现没躺在自己床上
+      if self.locType[0]:
+        problem = GoHomeProblem(gameState, self, enemiesLocation, 2)
+        actions = aStarSearch(problem, foodHeuristic1, self)
+        return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
 
       invaders = [invader for invader in enemies if invader.isPacman]
       invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
