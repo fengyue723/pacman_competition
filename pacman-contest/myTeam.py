@@ -220,10 +220,11 @@ class GeneralAgent(DummyAgent):
         self.enemyWeight = 3
       elif self.enemyWeight == 1 and repeatedHistory(self.history):
         self.enemyWeight = 2
-      elif self.enemyWeight >= 4 and repeatedHistory(self.history):
-        self.enemyWeight = min(self.enemyWeight+1, 6)
       elif len(self.enemyWeightHistory) >5 and len(set(self.enemyWeightHistory[-6:])) == 1:
         self.enemyWeight = max(self.enemyWeight-1, 2) if self.enemyWeight != 6 else 2
+      elif self.enemyWeight >= 4 and repeatedHistory(self.history):
+        self.enemyWeight = min(self.enemyWeight+1, 6)
+
 
 
       self.safeFood = getRelevantFood(self.food.asList(), self.safeCells)
@@ -238,7 +239,9 @@ class GeneralAgent(DummyAgent):
       for enemy in self.getOpponents(gameState):
         enemyPosition = gameState.getAgentPosition(enemy)
         if enemyPosition:
-          if gameState.getAgentState(enemy).scaredTimer>0 and manhattanDistance(enemyPosition, self.myPosition)==1:
+          if (gameState.getAgentState(enemy).scaredTimer>0 or (regionType(self.width, enemyPosition, self.red)[2]\
+            or regionType(self.width, enemyPosition, self.red)[3]) and gameState.getAgentState(self.index).scaredTimer<1\
+              ) and manhattanDistance(enemyPosition, self.myPosition)==1:
             self.safeFood.append(enemyPosition)
           elif gameState.getAgentState(enemy).scaredTimer<3:
             enemyLocation.append(enemyPosition)
