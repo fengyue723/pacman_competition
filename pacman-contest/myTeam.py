@@ -534,7 +534,8 @@ class GeneralAgent(DummyAgent):
         print('invaders:' + str(len(invaders)))
         if len(enemiesInSight) > 0:
           print('enemiesInSight:' + str(len(enemiesInSight)))
-          if closestEnemyDistance > 2 and self.myPosition in self.findEntrance(gameState):
+          print("tantou：", closestEnemyDistance)
+          if (closestEnemyDistance > 2 or closestEnemyDistance == -1) and self.myPosition in self.findEntrance(gameState):
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
             elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
@@ -649,7 +650,32 @@ class GeneralAgent(DummyAgent):
     for position in boundary:
       if position not in walls:
         res.append(position)
-    return res
+    
+    # 10.7
+    res = sorted(res, key=lambda x: x[1])
+    results = list()
+    length = len(res)
+
+    lastBreak = 0
+    if length > 1:
+      lastY = res[0][1]
+      curLen = 1
+      for i in range(1,length):
+        y = res[i][1]
+        if y == lastY + 1:
+          curLen += 1
+        else:
+          # print(y)
+          results.append(res[lastBreak+curLen//2])
+          lastBreak = i
+          curLen = 1
+        lastY = y
+      results.append(res[lastBreak+curLen//2])
+      # print(res)
+      # print(results)
+      return results
+    else:
+      return res
 
   def getLegalActionsNoCrossing(self, gameState):
     actions = list()
