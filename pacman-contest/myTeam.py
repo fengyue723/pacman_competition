@@ -203,9 +203,14 @@ class GeneralAgent(DummyAgent):
       startTime = time.time()
       print()
       print('Reaper new round:')
+      
+      self.myPosition = gameState.getAgentPosition(self.index)
+      self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
+      self.food = self.getFood(gameState)
+
       if self.getPreviousObservation() and \
         self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
-                                            gameState.getAgentPosition(self.index))!=1:
+                                            self.myPosition)!=1:
         self.enemyWeight = 2
         self.load = self.load//2
       elif self.enemyWeight == 3 and repeatedHistory(self.history):
@@ -219,9 +224,6 @@ class GeneralAgent(DummyAgent):
       elif len(self.enemyWeightHistory) >5 and len(set(self.enemyWeightHistory[-6:])) == 1:
         self.enemyWeight = max(self.enemyWeight-1, 2) if self.enemyWeight != 5 else 2
 
-      self.myPosition = gameState.getAgentPosition(self.index)
-      self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
-      self.food = self.getFood(gameState)
 
       self.safeFood = getRelevantFood(self.food.asList(), self.safeCells)
       #self.dangerousFood = getRelevantFood(self.food.asList(), self.dangerousCells)
@@ -241,9 +243,11 @@ class GeneralAgent(DummyAgent):
             enemyLocation.append(enemyPosition)
             enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
           
-
+      self.shadowEnenmy = [e for e in self.shadowEnenmy if manhattanDistance(e, self.myPosition)>5 \
+          and manhattanDistance(e, self.teammatePosition)>5] #Only keep shadows out of current visions
+      # Accept and update shandows of enemies    
       if len(enemyLocation)<1:
-        enemyLocation = self.shadowEnenmy
+        enemyLocation = self.shadowEnenmy  
         for enemyPosition in enemyLocation:
           enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
       elif len(enemyLocation) == 2:
@@ -314,11 +318,11 @@ class GeneralAgent(DummyAgent):
         """
         Eat all if foodleft >2 and
           1. In home safe region
-        or 2. No enemy insight or far away from me and numCarrying < 3
+        or 2. No enemy insight or far away from me and numCarrying < 4
         or 3. No safe food anymore and no food carrying and no capsules
         or 4. Enemy scared time > 8
         """
-        if len(self.food.asList())>2 and ( (carrying < 3 and (self.locType[2] or \
+        if len(self.food.asList())>2 and ( (carrying < 4 and (self.locType[2] or \
           not minOppenentDistance or minOppenentDistance>=10)) or ( len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 and \
               carrying == 0 and not self.capsuleLocations) or \
@@ -933,7 +937,7 @@ def foodHeuristic2(state, problem, agent):
         cur_table.push((pointwise, table[pointwise]), -table[pointwise])
 
     min_distance = 99999
-    i = 6
+    i = 8
     while cur_table and i>0:
       (p1, p2), _ = cur_table.pop()
       l1 = agent.distancer.getDistance(position, p1)
