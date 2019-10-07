@@ -235,8 +235,12 @@ class GeneralAgent(DummyAgent):
       for enemy in self.getOpponents(gameState):
         enemyPosition = gameState.getAgentPosition(enemy)
         if enemyPosition:
-          enemyLocation.append(enemyPosition)
-          enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
+          if gameState.getAgentState(enemy).scaredTimer>0 and manhattanDistance(enemyPosition, self.myPosition)==1:
+            self.safeFood.append(enemyPosition)
+          elif gameState.getAgentState(enemy).scaredTimer<3:
+            enemyLocation.append(enemyPosition)
+            enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
+          
 
       if len(enemyLocation)<1:
         enemyLocation = self.shadowEnenmy
@@ -290,10 +294,7 @@ class GeneralAgent(DummyAgent):
       self.locType = regionType(self.width, self.myPosition, self.red)
       carrying = gameState.getAgentState(self.index).numCarrying
 
-      if gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>2:
-        self.safeFood.extend([e for e in enemyLocation if self.distancer.getDistance(e, self.myPosition)==1])
-        enemyLocation = []
-        minOppenentDistance = None
+
 
       while True:
         """
@@ -606,9 +607,9 @@ class GeneralAgent(DummyAgent):
   def getWeightsScared(self,gameState, action):
     return {
             'safe': 100,
-            'onDefense': 200,  
+            'onDefense': 50,  
             'reverse': -10,
-            'stop': -50}
+            'stop': -200}
 
   def findLastEatenFood(self, gameState):
     res = list()
