@@ -214,7 +214,7 @@ class GeneralAgent(DummyAgent):
         if enemyScaredTime > 10 and len(self.food.asList()) > 8 and not self.locType[2]:
           self.label = 'TempReaperAgent'
           if len(self.capsuleLocations) > 0: #勇
-            self.tempReaperStep = 30
+            self.tempReaperStep = 50
             self.tempReaperLoad = 50
           else: 
             self.tempReaperStep = enemyScaredTime
