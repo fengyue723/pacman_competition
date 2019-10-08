@@ -169,7 +169,6 @@ class GeneralAgent(DummyAgent):
     self.myPosition = gameState.getAgentPosition(self.index)
     self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
     print("index!!!:", self.index)
-    print(self.teammatePosition, (self.index+2)%4)
     self.height = gameState.data.layout.height
     self.width = gameState.data.layout.width
     self.safeCells, self.dangerousCells = getSafeAndDangerousCells(gameState, self.height, self.width)
@@ -203,11 +202,23 @@ class GeneralAgent(DummyAgent):
     print(gameState.data.timeleft)
     self.myPosition = gameState.getAgentPosition(self.index)
     self.locType = regionType(self.width, self.myPosition, self.red)
+    self.food = self.getFood(gameState)
+    self.capsuleLocations = self.getCapsules(gameState)
     if self.label == 'DefenderAgent':
-      if gameState.getAgentState(self.index).scaredTimer>1 and (self.locType[1] or self.locType[3]):
+      if gameState.getAgentState(self.index).scaredTimer>1 and (self.locType[1] or self.locType[3]): #被动进攻
         self.label = 'TempReaperAgent'
         self.tempReaperStep = gameState.getAgentState(self.index).scaredTimer
         self.tempReaperLoad = 50
+      else: #主动进攻
+        enemyScaredTime = min([gameState.getAgentState(i).scaredTimer for i in ((self.index+1)%4,(self.index+3)%4)])
+        if enemyScaredTime > 10 and len(self.food.asList()) > 8 and (self.locType[1] or self.locType[3]):
+          self.label = 'TempReaperAgent'
+          if len(self.capsuleLocations) > 0: #勇
+            self.tempReaperStep = 100
+            self.tempReaperLoad = 50
+          else: 
+            self.tempReaperStep = enemyScaredTime
+            self.tempReaperLoad = 50
     elif self.label == 'TempReaperAgent':
       if self.tempReaperStep <= 1:
         self.label = 'DefenderAgent'
@@ -216,7 +227,6 @@ class GeneralAgent(DummyAgent):
       startTime = time.time()
       print('Reaper new round:')
       self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
-      self.food = self.getFood(gameState)
 
       if self.getPreviousObservation() and \
         self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
@@ -240,7 +250,6 @@ class GeneralAgent(DummyAgent):
       #self.dangerousFood = getRelevantFood(self.food.asList(), self.dangerousCells)
       self.dangerousFood_depth1 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth1)
       self.dangerousFood_depth2 = getRelevantFood(self.food.asList(), self.semiDangerousCells_depth2)
-      self.capsuleLocations = self.getCapsules(gameState)
       self.capsuleMazedistance = [self.distancer.getDistance(c, self.myPosition) for c in self.capsuleLocations]
 
       enemyLocation = []
@@ -312,11 +321,13 @@ class GeneralAgent(DummyAgent):
         """
         problem = GoHomeProblem(gameState, self, enemyLocation, self.enemyWeight)
         actions = aStarSearch(problem, foodHeuristic1, self)
+        problem = SearchCapsuleProblem(gameState, self, enemyLocation, self.enemyWeight)
+        capsule_actions = aStarSearch(problem, foodHeuristic1, self)
         if not actions:
           problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
           actions = aStarSearch(problem, foodHeuristic1, self)
-        if self.leftStep < len(actions) + 5:
-          print("going home!")
+        if self.leftStep < len(actions) + 3:
+          print("going home!(no time)")
           break
         else:
           goHomeActions = actions
@@ -353,6 +364,7 @@ class GeneralAgent(DummyAgent):
         3. enemyDistance < 5 and no d1 food
         4. enemyDistance < 3 and no safe food
         5. enemyWeight > 4
+        6. capsules >= 2 and enemy insight and nearer to capsules than enemy
         """
         if time.time() - startTime > 0.8:
           print("Timeout, skip eating capsule")
@@ -364,10 +376,10 @@ class GeneralAgent(DummyAgent):
               or ( minOppenentDistance and minOppenentDistance< 10 and len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 ) or (minOppenentDistance and minOppenentDistance<5 \
               and len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0) or (minOppenentDistance and minOppenentDistance<3 \
-                and len(self.safeFood) == 0) or self.enemyWeight > 4:
+                and len(self.safeFood) == 0) or self.enemyWeight > 4 or (len(self.capsuleLocations)>=2 and enemyLocation and \
+                  nearestCapsuleDis<min([self.distancer.getDistance(e, nearestCapsuleLoc) for e in enemyLocation]) ):
             print("eat capsule!")
-            problem = SearchCapsuleProblem_depth2(gameState, self, enemyLocation, self.enemyWeight)
-            actions = aStarSearch(problem, foodHeuristic1, self)
+            actions = capsule_actions
             if actions:
               break
         
@@ -421,8 +433,12 @@ class GeneralAgent(DummyAgent):
           if actions:
             break
 
-        print("going home!")
-        actions = goHomeActions
+        if capsule_actions:
+          print("eating capsule!")
+          actions = capsule_actions
+        else:
+          print("going home!")
+          actions = goHomeActions
         break
 
       if actions:
@@ -442,7 +458,7 @@ class GeneralAgent(DummyAgent):
         if self.label == 'TempReaperAgent':
           self.tempReaperStep -= 1
         return action
-    #Agent mainly in charge of denfending our food
+    #Defender!!!!!!!!!!!!!!!
     else:
       print('Defender new round:')
       # Computes distance to invaders we can see
@@ -891,7 +907,7 @@ class SearchSafeFoodProblem:
               successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
       return successors
 
-class SearchCapsuleProblem_depth2(SearchSafeFoodProblem):
+class SearchCapsuleProblem(SearchSafeFoodProblem):
   def __init__(self, startingGameState, reaperAgent, enemyLocation, enemyWeight):
     SearchSafeFoodProblem.__init__(self, startingGameState, reaperAgent, enemyLocation, enemyWeight)
     self.start = (reaperAgent.myPosition, set(reaperAgent.capsuleLocations))
