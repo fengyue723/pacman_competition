@@ -468,6 +468,7 @@ class GeneralAgent(DummyAgent):
     #Defender!!!!!!!!!!!!!!!
     else:
       print('Defender new round:')
+      entrance = self.findEntrance(gameState)
       # Computes distance to invaders we can see
       self.lastEatenFood = self.findLastEatenFood(gameState)
       self.target = list()
@@ -476,8 +477,8 @@ class GeneralAgent(DummyAgent):
       enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
 
 
-      enemiesLocationInMySight = self.findEnemiesInMySight(enemiesLocation)
-      closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocationInMySight)>0 else -1
+      #enemiesLocationInMySight = self.findEnemiesInMySight(enemiesLocation)
+      closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else -1
       #突然醒来，发现没躺在自己床上
       if self.locType[0]:
         if len(self.lastChaseTarget) == 0 and len(self.lastEatenFood) == 0:
@@ -537,7 +538,7 @@ class GeneralAgent(DummyAgent):
             bestActions = [a for a, v in zip(actions, values) if v == maxValue]
             return random.choice(bestActions) if len(bestActions) > 0 else 'Stop'
           else:
-            boundary = self.findEntrance(gameState)
+            boundary = entrance
             if self.myPosition in boundary:
               print('gtmd')
               return random.choice(gameState.getLegalActions(self.index))
@@ -561,8 +562,8 @@ class GeneralAgent(DummyAgent):
           actions = aStarSearch(problem, foodHeuristic1, self)
           return actions[0] if len(actions) > 0 else 'Stop'
 
-        self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
-        if gameState.getAgentPosition(self.index) in self.target: 
+        self.target = entrance # 去入口等
+        if self.myPosition in self.target: 
           return 'Stop'
         problem = GoToProblem(gameState, self)
         actions = aStarSearch(problem, foodHeuristic1, self)
@@ -573,11 +574,12 @@ class GeneralAgent(DummyAgent):
         if len(enemiesInSight) > 0:
           print('enemiesInSight:' + str(len(enemiesInSight)))
           print("tantou：", closestEnemyDistance)
-          if (closestEnemyDistance > 2 or closestEnemyDistance == -1) and self.myPosition in self.findEntrance(gameState):
+          if ( (closestEnemyDistance > 2 and closestEnemyDistance <= 5) or closestEnemyDistance == -1) and self.locType[3]:
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
             elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
               return 'West'
+          #上下摇
           tempActions = self.getLegalActionsNoCrossing(gameState)
           distance = 9999999
           res = list()
@@ -596,8 +598,8 @@ class GeneralAgent(DummyAgent):
 
         else:
           print('enemiesInSight:' + str(len(enemiesInSight)))
-          self.target = self.findEntrance(gameState) # 没入侵者 -> 去入口等
-          if gameState.getAgentPosition(self.index) in self.target: 
+          self.target = entrance # 没入侵者 -> 去入口等
+          if self.myPosition in self.target: 
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
             elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
@@ -727,7 +729,7 @@ class GeneralAgent(DummyAgent):
     actions = list()
     # print(gameState.getLegalActions(self.index))    
     for direction in gameState.getLegalActions(self.index):
-      x, _ = gameState.getAgentPosition(self.index)
+      x, _ = self.myPosition
       dx, _ = Actions.directionToVector(direction)
       nextx = int(x + dx)
       if nextx <= self.maxX and nextx >= self.minX:
@@ -739,7 +741,7 @@ class GeneralAgent(DummyAgent):
     actions = list()
     walls = self.walls | set(extra_walls)  
     for direction in gameState.getLegalActions(self.index):
-      x, y = gameState.getAgentPosition(self.index)
+      x, y = self.myPosition
       dx, dy = Actions.directionToVector(direction)
       nextx,nexty = int(x + dx), int(y + dy)
       if (nextx, nexty) not in walls:
