@@ -211,7 +211,9 @@ class GeneralAgent(DummyAgent):
         self.tempReaperLoad = 50
       else: #主动进攻
         enemyScaredTime = min([gameState.getAgentState(i).scaredTimer for i in ((self.index+1)%4,(self.index+3)%4)])
-        if enemyScaredTime > 10 and len(self.food.asList()) > 8 and not self.locType[2]:
+        if enemyScaredTime > 10 and len(self.food.asList()) > 8 and not self.locType[2] and \
+          (not gameState.getAgentPosition(self.getOpponents(gameState)[0]) and \
+              not gameState.getAgentPosition(self.getOpponents(gameState)[1]) ) :
           self.label = 'TempReaperAgent'
           if len(self.capsuleLocations) > 0: #勇
             self.tempReaperStep = 50
