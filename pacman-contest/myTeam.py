@@ -368,7 +368,7 @@ class GeneralAgent(DummyAgent):
         5. enemyWeight > 4
         6. capsules >= 2 and enemy insight and nearer to capsules than enemy
         """
-        if time.time() - startTime > 0.8:
+        if time.time() - startTime > 0.6:
           print("Timeout, skip eating capsule")
           break
         if self.capsuleLocations and len(self.food.asList())>2:
@@ -385,7 +385,7 @@ class GeneralAgent(DummyAgent):
             if actions:
               break
         
-        if time.time() - startTime > 0.8:
+        if time.time() - startTime > 0.6:
           print("Timeout, skip eating Danger_depth2")
           break
         """
@@ -404,7 +404,7 @@ class GeneralAgent(DummyAgent):
             break
 
 
-        if time.time() - startTime > 0.8:
+        if time.time() - startTime > 0.6:
           print("Timeout, skip eating Danger_depth1")
           break
         """
@@ -421,7 +421,7 @@ class GeneralAgent(DummyAgent):
           if actions:
             break
 
-        if time.time() - startTime > 0.9:
+        if time.time() - startTime > 0.6:
           print("Timeout, skip eating safe")
           break
         """
@@ -452,10 +452,11 @@ class GeneralAgent(DummyAgent):
         self.leftStep -= 1
         if self.label == 'TempReaperAgent':
           self.tempReaperStep -= 1
+        print("Time used:", time.time() - startTime)
         return actions[0]
       else:
-        if self.history[-1] == 'Stop':
-          action =  random.choice(gameState.getLegalActions(self.index))
+        if self.history and self.history[-1] == 'Stop':
+          action = random.choice(gameState.getLegalActions(self.index))
         else:
           action = 'Stop'
         self.history.append(action)
@@ -464,6 +465,7 @@ class GeneralAgent(DummyAgent):
         self.leftStep -= 1
         if self.label == 'TempReaperAgent':
           self.tempReaperStep -= 1
+        print("Time used:", time.time() - startTime)
         return action
     #Defender!!!!!!!!!!!!!!!
     else:
@@ -847,9 +849,37 @@ class ChaseInvadersProblem:
                 successors.append( ( ((nextx, nexty), nextTarget), direction, 1) )
         return successors
 
+class searchWallsProblem:
+  def __init__(self, startingGameState, enemyPosition, enemyWeight):
+    self.start = enemyPosition
+    self.walls = set(startingGameState.getWalls().asList()) #set((walls))
+    self.heuristicInfo = {} # A dictionary for the heuristic to store information
+    self.enemyPosition = enemyPosition
+    self.enemyWeight = enemyWeight
+
+  def getStartState(self):
+    return self.start
+  
+  def getSuccessors(self, state):
+      "Returns successor states, the actions they require, and a cost of 1."
+      successors = []
+      for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+          x,y = state
+          dx, dy = Actions.directionToVector(direction)
+          nextx, nexty = int(x + dx), int(y + dy)
+          if (nextx, nexty) not in self.walls:
+              successors.append( (nextx, nexty) )
+      return successors  
+
+
 class SearchSafeFoodProblem:
   def __init__(self, startingGameState, reaperAgent, enemyLocation, enemyWeight):
     self.start = (reaperAgent.myPosition, set(reaperAgent.safeFood))
+    self.extra_walls = set()
+    for enemyPosition in enemyLocation:
+      problem = searchWallsProblem(startingGameState, enemyPosition, enemyWeight)
+      self.extra_walls |= set(bfs_with_depth(problem, enemyWeight))
+
     self.walls = set(startingGameState.getWalls().asList()) #set((walls))
     self.startingGameState = startingGameState
     self.heuristicInfo = {} # A dictionary for the heuristic to store information
@@ -870,13 +900,23 @@ class SearchSafeFoodProblem:
           x,y = state[0]
           dx, dy = Actions.directionToVector(direction)
           nextx, nexty = int(x + dx), int(y + dy)
-          if (nextx, nexty) in self.agent.homeBoundaryArea or ( (nextx, nexty) not in self.walls and (not self.enemyLocation or\
-            min(self.agent.distancer.getDistance((nextx, nexty), enemy) for enemy in self.enemyLocation)\
-              > min([self.enemyWeight-1, self.agent.distancer.getDistance((nextx, nexty), self.start[0])])) ):
+          if (nextx, nexty) in self.agent.homeBoundaryArea:
               nextFood = set(state[1]) 
-              # if (nextx, nexty) in nextFood:
-              #   nextFood.remove((nextx, nexty))
               successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
+          elif (nextx, nexty) not in self.walls:
+            if (nextx, nexty) not in self.extra_walls or min(self.agent.distancer.getDistance((nextx, nexty), enemy) for enemy in self.enemyLocation)\
+              > min([self.enemyWeight-1, self.agent.distancer.getDistance((nextx, nexty), self.start[0])]):
+              nextFood = set(state[1]) 
+              successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
+
+
+          # if (nextx, nexty) in self.agent.homeBoundaryArea or ( (nextx, nexty) not in self.walls and (not self.enemyLocation or\
+          #   min(self.agent.distancer.getDistance((nextx, nexty), enemy) for enemy in self.enemyLocation)\
+          #     > min([self.enemyWeight-1, self.agent.distancer.getDistance((nextx, nexty), self.start[0])])) ):
+          #     nextFood = set(state[1]) 
+          #     # if (nextx, nexty) in nextFood:
+          #     #   nextFood.remove((nextx, nexty))
+          #     successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
       return successors
 
 class SearchCapsuleProblem(SearchSafeFoodProblem):
@@ -1129,15 +1169,15 @@ def aStarSearch(problem, heuristic, agent):
     heap.push([problem.getStartState(), 0, None, None], [h0, h0])
     
     closed = {}
-    best_g = {}
+    #best_g = {}
     
     while not heap.isEmpty():
       node = heap.pop()
       g = node[1]
       node[0] = (node[0][0], tuple(node[0][1]))
-      if node[0] not in closed or g < best_g[node[0]]:
+      if node[0] not in closed: #or g < best_g[node[0]]:
         closed[node[0]] = [g, node[2], node[3]] #state:[g,action,father]
-        best_g[node[0]] = g
+        #best_g[node[0]] = g
 
         if problem.isGoalState(node[0]):
           res = []
@@ -1155,4 +1195,16 @@ def aStarSearch(problem, heuristic, agent):
 
     return []
 
+def bfs_with_depth(problem, depth):    
+    queue = util.Queue()
+    queue.push([problem.getStartState(), 0])
+    used = {problem.getStartState(): 0}
+    while not queue.isEmpty():
+      node = queue.pop()
+      if node[1] < depth:
+        for child in problem.getSuccessors(node[0]):
+          if child not in used:
+            used[child] = node[1]+1
+            queue.push([child, node[1]+1])
+    return list(used.keys())
 
