@@ -455,10 +455,10 @@ class GeneralAgent(DummyAgent):
         print("Time used:", time.time() - startTime)
         return actions[0]
       else:
-        if self.history and self.history[-1] == 'Stop':
-          action = random.choice(gameState.getLegalActions(self.index))
-        else:
-          action = 'Stop'
+        # if self.history and self.history[-1] == 'Stop':
+        #   action = random.choice(gameState.getLegalActions(self.index))
+        # else:
+        action = 'Stop'
         self.history.append(action)
         self.history = self.history[-12:]
         print(action)
