@@ -267,8 +267,8 @@ class GeneralAgent(DummyAgent):
             enemyLocation.append(enemyPosition)
             enemyDistance.append(self.distancer.getDistance(self.myPosition, enemyPosition))
           
-      self.shadowEnenmy = [e for e in self.shadowEnenmy if manhattanDistance(e, self.myPosition)>5 \
-          and manhattanDistance(e, self.teammatePosition)>5] #Only keep shadows out of current visions
+      self.shadowEnenmy = [e for e in self.shadowEnenmy if manhattanDistance(e, self.myPosition)>4 \
+          and manhattanDistance(e, self.teammatePosition)>5] #Only keep shadows maybe out of current visions
       # Accept and update shandows of enemies    
       if len(enemyLocation)<1:
         enemyLocation = self.shadowEnenmy  
