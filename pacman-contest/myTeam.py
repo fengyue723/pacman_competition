@@ -181,6 +181,7 @@ class GeneralAgent(DummyAgent):
     self.shadowEnenmy = []
     self.leftStep = 300
     self.load = 20
+    self.lastChaseTarget = list()
     
     myDistance = min([self.distancer.getDistance(b, self.myPosition) for b in self.enemyBoundaryArea])
     teammateDistance = min([self.distancer.getDistance(b, self.teammatePosition) for b in self.enemyBoundaryArea])
@@ -193,7 +194,6 @@ class GeneralAgent(DummyAgent):
       self.maxX = gameState.data.layout.width/2-1 if self.red else gameState.data.layout.width - 1
       self.walls = set(gameState.getWalls().asList())
       self.target = list()
-      self.lastChaseTarget = list()
 
 
 
@@ -204,6 +204,8 @@ class GeneralAgent(DummyAgent):
     self.locType = regionType(self.width, self.myPosition, self.red)
     self.food = self.getFood(gameState)
     self.capsuleLocations = self.getCapsules(gameState)
+    self.lastEatenFood = self.findLastEatenFood(gameState)
+    self.lastChaseTarget = self.lastEatenFood if self.lastEatenFood else self.lastChaseTarget
     if self.label == 'DefenderAgent':
       if gameState.getAgentState(self.index).scaredTimer>1 and not self.locType[2]: #被动进攻
         self.label = 'TempReaperAgent'
@@ -223,9 +225,14 @@ class GeneralAgent(DummyAgent):
             self.tempReaperLoad = 50
     elif self.label == 'TempReaperAgent':
       if self.tempReaperStep <= 1:
-        self.label = 'DefenderAgent'
+        if self.locType[0] or self.locType[1]:
+          self.label = 'TempGoHomeAgent'
+        else:
+          self.label = 'DefenderAgent'
+    elif self.label == 'TempGoHomeAgent' and (self.locType[2] or self.locType[3]):
+      self.label = 'DefenderAgent'
 
-    if self.label == 'ReaperAgent' or self.label == 'TempReaperAgent':
+    if self.label == 'ReaperAgent' or self.label == 'TempReaperAgent' or self.label == 'TempGoHomeAgent':
       startTime = time.time()
       print(self.label, 'new round:')
       self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
@@ -328,8 +335,8 @@ class GeneralAgent(DummyAgent):
         if not goHomeActions:
           problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
           feedActions = aStarSearch(problem, foodHeuristic1, self)
-        if self.leftStep < len(goHomeActions) + 3:
-          print("going home!(no time)")
+        if self.leftStep < len(goHomeActions) + 3 or self.label == 'TempGoHomeAgent':
+          print("going home!(no time) | TempGoHome")
           actions = goHomeActions if goHomeActions else feedActions
           break
 
@@ -453,6 +460,14 @@ class GeneralAgent(DummyAgent):
         if self.label == 'TempReaperAgent':
           self.tempReaperStep -= 1
         print("Time used:", time.time() - startTime)
+
+        # Nextstate testing!!!!!!!!!!!!!!!!
+        # nextState = self.getSuccessor(gameState, actions[0])
+        # enemies = [gameState.getAgentState(i) for i in self.getOpponents(nextState)]
+        # enemiesDInSight = [manhattanDistance(enemy.getPosition(), self.myPosition) for enemy in enemies if enemy.getPosition() != None]
+        # if 5 in enemiesDInSight and not enemyLocation:
+        #   raise RuntimeError
+
         return actions[0]
       else:
         # if self.history and self.history[-1] == 'Stop':
@@ -482,21 +497,21 @@ class GeneralAgent(DummyAgent):
       #enemiesLocationInMySight = self.findEnemiesInMySight(enemiesLocation)
       closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else -1
       #突然醒来，发现没躺在自己床上
-      if self.locType[0]:
-        if len(self.lastChaseTarget) == 0 and len(self.lastEatenFood) == 0:
-          enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
-          enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
-          problem = GoHomeProblem(gameState, self, enemiesLocation, 2)
-          actions = aStarSearch(problem, foodHeuristic1, self)
-          return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
-        else:
-          self.lastChaseTarget = self.lastEatenFood if self.lastEatenFood else self.lastChaseTarget
-          self.target = self.lastChaseTarget
-          enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
-          enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
-          problem = ChaseInvadersProblem(gameState, self, enemiesLocation)
-          actions = aStarSearch(problem, foodHeuristic1, self)
-          return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
+      # if self.locType[0]:
+      #   if len(self.lastChaseTarget) == 0 and len(self.lastEatenFood) == 0:
+      #     enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
+      #     enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
+      #     problem = GoHomeProblem(gameState, self, enemiesLocation, 2)
+      #     actions = aStarSearch(problem, foodHeuristic1, self)
+      #     return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
+      #   else:
+      #     self.lastChaseTarget = self.lastEatenFood if self.lastEatenFood else self.lastChaseTarget
+      #     self.target = self.lastChaseTarget
+      #     enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
+      #     enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
+      #     problem = ChaseInvadersProblem(gameState, self, enemiesLocation)
+      #     actions = aStarSearch(problem, foodHeuristic1, self)
+      #     return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
           
 
 
