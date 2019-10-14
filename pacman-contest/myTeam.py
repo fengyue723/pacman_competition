@@ -315,7 +315,7 @@ class GeneralAgent(DummyAgent):
 
       #Decisions
       
-      heuristic = foodHeuristic2 if ( len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
+      heuristic = foodHeuristic1 if ( len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
         self.food.asList() and min([self.distancer.getDistance(v, self.myPosition) \
           for v in self.food.asList()])<11 ) and self.enemyWeight < 5 else foodHeuristic1
 
@@ -373,7 +373,7 @@ class GeneralAgent(DummyAgent):
         3. enemyDistance < 5 and no d1 food
         4. enemyDistance < 3 and no safe food
         5. enemyWeight > 4
-        6. capsules >= 2 and enemy insight and nearer to capsules than enemy
+        6. capsules >= 1 and enemy insight and nearer to capsules than enemy
         """
         if time.time() - startTime > 0.6:
           print("Timeout, skip eating capsule")
@@ -385,7 +385,7 @@ class GeneralAgent(DummyAgent):
               or ( minOppenentDistance and minOppenentDistance< 10 and len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 ) or (minOppenentDistance and minOppenentDistance<5 \
               and len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0) or (minOppenentDistance and minOppenentDistance<3 \
-                and len(self.safeFood) == 0) or self.enemyWeight > 4 or (len(self.capsuleLocations)>=2 and enemyLocation and \
+                and len(self.safeFood) == 0) or self.enemyWeight > 4 or (len(self.capsuleLocations)>=1 and enemyLocation and \
                   nearestCapsuleDis<min([self.distancer.getDistance(e, nearestCapsuleLoc) for e in enemyLocation]) ):
             print("eat capsule!")
             actions = capsule_actions
