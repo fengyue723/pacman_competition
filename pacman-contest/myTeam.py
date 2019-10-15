@@ -242,7 +242,7 @@ class GeneralAgent(DummyAgent):
         self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
                                             self.myPosition)!=1:
         self.enemyWeight = 2
-        self.load = self.load//2
+        self.load = self.load*2//3
       elif self.enemyWeight == 3 and repeatedHistory(self.history):
         self.enemyWeight = 4
       elif self.enemyWeight == 2 and repeatedHistory(self.history):
@@ -518,7 +518,7 @@ class GeneralAgent(DummyAgent):
       invaders = [invader for invader in enemies if invader.isPacman]
       invadersInSight = [invader for invader in invaders if invader.getPosition() != None]
       invadersLocation = [invader.getPosition() for invader in invadersInSight]
-      closestInvaderDistance = self.findClosestDistance(gameState, invadersLocation) # an integer
+      closestInvaderDistance, _ = self.findClosestDistance(gameState, invadersLocation) # an integer
 
 
       if self.myPosition in self.lastChaseTarget:
