@@ -165,6 +165,7 @@ class DummyAgent(CaptureAgent):
 
 class GeneralAgent(DummyAgent):
   def registerInitialState(self, gameState):
+    print(gameState)
     DummyAgent.registerInitialState(self, gameState)
     self.myPosition = gameState.getAgentPosition(self.index)
     self.teammatePosition = gameState.getAgentPosition((self.index+2)%4)
@@ -315,9 +316,9 @@ class GeneralAgent(DummyAgent):
 
       #Decisions
       
-      heuristic = foodHeuristic1 if ( len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
-        self.food.asList() and min([self.distancer.getDistance(v, self.myPosition) \
-          for v in self.food.asList()])<11 ) and self.enemyWeight < 5 else foodHeuristic1
+      heuristic = foodHeuristic1 #if ( len(self.food.asList()) < 40 and len(self.safeFood)>5 and \
+      #   self.food.asList() and min([self.distancer.getDistance(v, self.myPosition) \
+      #     for v in self.food.asList()])<11 ) and self.enemyWeight < 5 else foodHeuristic1
 
       print("enemyWeight:", self.enemyWeight)
       carrying = gameState.getAgentState(self.index).numCarrying
