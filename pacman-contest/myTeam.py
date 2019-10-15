@@ -435,7 +435,7 @@ class GeneralAgent(DummyAgent):
         Eat safe if foodleft > 2 and one of:
         1. food carrying < max(left safefood, 10)
         """
-        if len(self.food.asList())>2 and carrying < max(min(4*len(self.safeFood), self.load), 3):
+        if len(self.food.asList())>2 and carrying < max(min(4*len(self.safeFood), self.load), 5):
           print('eat safe!')
           problem = SearchSafeFoodProblem(gameState, self, enemyLocation, self.enemyWeight)
           actions = aStarSearch(problem, heuristic, self)
