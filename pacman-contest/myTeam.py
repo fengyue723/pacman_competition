@@ -495,7 +495,7 @@ class GeneralAgent(DummyAgent):
 
 
       #enemiesLocationInMySight = self.findEnemiesInMySight(enemiesLocation)
-      closestEnemyDistance = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else -1
+      closestEnemyDistance, closestEnemyLocation = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else [-1, None]
       #突然醒来，发现没躺在自己床上
       # if self.locType[0]:
       #   if len(self.lastChaseTarget) == 0 and len(self.lastEatenFood) == 0:
@@ -591,7 +591,8 @@ class GeneralAgent(DummyAgent):
         if len(enemiesInSight) > 0:
           print('enemiesInSight:' + str(len(enemiesInSight)))
           print("tantou：", closestEnemyDistance)
-          if ( (closestEnemyDistance > 2 and closestEnemyDistance <= 5) or closestEnemyDistance == -1) and self.locType[3]:
+          if ( (closestEnemyDistance > 2 and closestEnemyDistance <= 5 and abs(closestEnemyLocation[1]-self.myPosition[1])<2 )\
+             or closestEnemyDistance == -1) and self.locType[3]:
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
             elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
@@ -778,11 +779,13 @@ class GeneralAgent(DummyAgent):
 
   def findClosestDistance(self, gameState, invadersLocation):
     distance = 999999
+    invader = tuple()
     for location in invadersLocation:
       curDis = self.distancer.getDistance(self.myPosition, location)
       if curDis < distance:
         distance = curDis
-    return distance
+        invader = location
+    return [distance, invader]
 
 
 
