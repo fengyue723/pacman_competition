@@ -181,7 +181,7 @@ class GeneralAgent(DummyAgent):
     self.enemyWeightHistory = []
     self.shadowEnenmy = []
     self.leftStep = 300
-    self.load = 20
+    self.load = 28
     self.lastChaseTarget = list()
     
     myDistance = min([self.distancer.getDistance(b, self.myPosition) for b in self.enemyBoundaryArea])
@@ -331,12 +331,13 @@ class GeneralAgent(DummyAgent):
         """
         problem = GoHomeProblem(gameState, self, enemyLocation, self.enemyWeight)
         goHomeActions = aStarSearch(problem, foodHeuristic1, self)
+        print('goHomeActions', goHomeActions)
         problem = SearchCapsuleProblem(gameState, self, enemyLocation, self.enemyWeight)
         capsule_actions = aStarSearch(problem, foodHeuristic1, self)
         if not goHomeActions:
           problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
           feedActions = aStarSearch(problem, foodHeuristic1, self)
-        if self.leftStep < len(goHomeActions) + 3 or self.label == 'TempGoHomeAgent':
+        if self.leftStep < len(goHomeActions) + 1 or self.label == 'TempGoHomeAgent':
           print("going home!(no time) | TempGoHome")
           actions = goHomeActions if goHomeActions else feedActions
           break
@@ -345,16 +346,14 @@ class GeneralAgent(DummyAgent):
         """
         Eat all if foodleft >2 and one of
           1. In home safe region
-        or 2. No enemy insight or far away from me and numCarrying < 4
+        or 2. No enemy insight or far away from me and numCarrying < load/2
         or 3. No safe food anymore and no food carrying and no capsules
-        or 4. Enemy scared time > 8
-        or 5. All oppenents are pac-man
+        or 4. All oppenents are pac-man
         """
-        if len(self.food.asList())>2 and ( (carrying < 4 and (self.locType[2] or \
+        if len(self.food.asList())>2 and ( (carrying <= self.load//2 and (self.locType[2] or \
           not minOppenentDistance or minOppenentDistance>=10)) or ( len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 and \
               carrying == 0 and not self.capsuleLocations) or \
-                gameState.getAgentState(self.getOpponents(gameState)[0]).scaredTimer>8 or \
                   (gameState.getAgentState(self.getOpponents(gameState)[0]).isPacman and \
                     gameState.getAgentState(self.getOpponents(gameState)[1]).isPacman) ): 
           print("eat all!")
@@ -372,21 +371,21 @@ class GeneralAgent(DummyAgent):
         1. Near capsule and near oppenents, and nearer capsule than oppenents.
         2. enemyDistance < 10 and all danger food
         3. enemyDistance < 5 and no d1 food
-        4. enemyDistance < 3 and no safe food
+        4. enemyDistance < 3 and (safe food<5 or carrying>5)
         5. enemyWeight > 4
-        6. capsules >= 1 and enemy insight and nearer to capsules than enemy
+        6. capsules >= 2 and enemy insight and nearer to capsules than enemy
         """
         if time.time() - startTime > 0.6:
           print("Timeout, skip eating capsule")
           break
         if self.capsuleLocations and len(self.food.asList())>2:
           nearestCapsuleLoc, nearestCapsuleDis = min(zip(self.capsuleLocations, self.capsuleMazedistance), key=lambda x: x[1])
-          if (minOppenentDistance and minOppenentDistance< 6 and nearestCapsuleDis<6 \
+          if (minOppenentDistance and minOppenentDistance< 6 and nearestCapsuleDis<10 \
             and nearestCapsuleDis<=min([self.distancer.getDistance(nearestCapsuleLoc, e) for e in enemyLocation])) \
               or ( minOppenentDistance and minOppenentDistance< 10 and len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 ) or (minOppenentDistance and minOppenentDistance<5 \
               and len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0) or (minOppenentDistance and minOppenentDistance<3 \
-                and len(self.safeFood) == 0) or self.enemyWeight > 4 or (len(self.capsuleLocations)>=1 and enemyLocation and \
+                and (len(self.safeFood) <= 4 or carrying>5)) or self.enemyWeight > 4 or (len(self.capsuleLocations)>=2 and enemyLocation and \
                   nearestCapsuleDis<min([self.distancer.getDistance(e, nearestCapsuleLoc) for e in enemyLocation]) ):
             print("eat capsule!")
             actions = capsule_actions
@@ -402,7 +401,7 @@ class GeneralAgent(DummyAgent):
         2. enemyDistance >= 5
         3. no more Safer foods and no food carrying and no capsules
         """
-        if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
+        if len(self.food.asList())>2 and carrying <= max(self.load//2, self.load-10) and ( not minOppenentDistance or \
           minOppenentDistance>=5 or ( len(self.dangerousFood_depth1) == 0 and \
             len(self.safeFood) == 0 and carrying == 0 ) ):
           print("eat danger2!")
@@ -421,7 +420,7 @@ class GeneralAgent(DummyAgent):
         2. enemyDistance >= 3
         3. no more Safer foods and no food carrying
         """
-        if len(self.food.asList())>2 and carrying <= 10 and ( not minOppenentDistance or \
+        if len(self.food.asList())>2 and carrying <= max(self.load//2, self.load-10) and ( not minOppenentDistance or \
           minOppenentDistance>=3 or (len(self.safeFood) == 0 and carrying == 0) ):
           print("eat danger1!")
           problem = SearchDangerProblem_depth1(gameState, self, enemyLocation, self.enemyWeight)
@@ -436,7 +435,7 @@ class GeneralAgent(DummyAgent):
         Eat safe if foodleft > 2 and one of:
         1. food carrying < max(left safefood, 10)
         """
-        if len(self.food.asList())>2 and carrying < max(min(len(self.safeFood), self.load), 3):
+        if len(self.food.asList())>2 and carrying < max(min(4*len(self.safeFood), self.load), 3):
           print('eat safe!')
           problem = SearchSafeFoodProblem(gameState, self, enemyLocation, self.enemyWeight)
           actions = aStarSearch(problem, heuristic, self)
