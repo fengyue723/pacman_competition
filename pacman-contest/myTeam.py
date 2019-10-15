@@ -337,7 +337,7 @@ class GeneralAgent(DummyAgent):
         if not goHomeActions:
           problem = GoHomeProblem(gameState, self, [], self.enemyWeight)
           feedActions = aStarSearch(problem, foodHeuristic1, self)
-        if self.leftStep < len(goHomeActions) + 1 or self.label == 'TempGoHomeAgent':
+        if self.leftStep < len(goHomeActions) + 3 or self.label == 'TempGoHomeAgent':
           print("going home!(no time) | TempGoHome")
           actions = goHomeActions if goHomeActions else feedActions
           break
@@ -349,13 +349,15 @@ class GeneralAgent(DummyAgent):
         or 2. No enemy insight or far away from me and numCarrying < load/2
         or 3. No safe food anymore and no food carrying and no capsules
         or 4. All oppenents are pac-man
+        or 5. All oppenents scared time > 7
         """
         if len(self.food.asList())>2 and ( (carrying <= self.load//2 and (self.locType[2] or \
           not minOppenentDistance or minOppenentDistance>=10)) or ( len(self.dangerousFood_depth2) == 0 and\
             len(self.dangerousFood_depth1) == 0 and len(self.safeFood) == 0 and \
               carrying == 0 and not self.capsuleLocations) or \
                   (gameState.getAgentState(self.getOpponents(gameState)[0]).isPacman and \
-                    gameState.getAgentState(self.getOpponents(gameState)[1]).isPacman) ): 
+                    gameState.getAgentState(self.getOpponents(gameState)[1]).isPacman) or\
+                      min([gameState.getAgentState(i).scaredTimer for i in ((self.index+1)%4,(self.index+3)%4)])>7 ): 
           print("eat all!")
           if gameState.getAgentState(self.index).scaredTimer == 0:
             problem = SearchNearestProblem(gameState, self, [e for e in enemyLocation if \
