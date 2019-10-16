@@ -322,6 +322,8 @@ class GeneralAgent(DummyAgent):
 
       print("enemyWeight:", self.enemyWeight)
       carrying = gameState.getAgentState(self.index).numCarrying
+      print("load:", self.load)
+      print("carrying:", carrying)
 
 
 
