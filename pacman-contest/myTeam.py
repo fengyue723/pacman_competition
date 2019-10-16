@@ -269,8 +269,8 @@ class GeneralAgent(DummyAgent):
         if enemyPosition:
           enemyLocationType = regionType(self.width, enemyPosition, self.red)
           if manhattanDistance(enemyPosition, self.myPosition)==1 and \
-            ( ( enemyLocationType[0] or enemyLocationType[1] and gameState.getAgentState(enemy).scaredTimer>0 )\
-              or (enemyLocationType[2] or enemyLocationType[3] and gameState.getAgentState(self.index).scaredTimer==0) ):
+            ( ( (enemyLocationType[0] or enemyLocationType[1]) and gameState.getAgentState(enemy).scaredTimer>0 )\
+              or ((enemyLocationType[2] or enemyLocationType[3]) and gameState.getAgentState(self.index).scaredTimer==0) ):
             self.safeFood.append(enemyPosition)
           elif gameState.getAgentState(enemy).scaredTimer<3:
             enemyLocation.append(enemyPosition)
