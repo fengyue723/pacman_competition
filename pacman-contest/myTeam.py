@@ -208,17 +208,17 @@ class GeneralAgent(DummyAgent):
     self.lastEatenFood = self.findLastEatenFood(gameState)
     self.lastChaseTarget = self.lastEatenFood if self.lastEatenFood else self.lastChaseTarget
     if self.label == 'DefenderAgent':
-      if gameState.getAgentState(self.index).scaredTimer>1 and not self.locType[2]: #被动进攻
+      if gameState.getAgentState(self.index).scaredTimer>1 and not self.locType[2]: #passive attack
         self.label = 'TempReaperAgent'
         self.tempReaperStep = gameState.getAgentState(self.index).scaredTimer
         self.tempReaperLoad = 50
-      else: #主动进攻
+      else: #aggresive attack
         enemyScaredTime = min([gameState.getAgentState(i).scaredTimer for i in ((self.index+1)%4,(self.index+3)%4)])
         if enemyScaredTime > 10 and len(self.food.asList()) > 8 and not self.locType[2] and \
           (not gameState.getAgentPosition(self.getOpponents(gameState)[0]) and \
               not gameState.getAgentPosition(self.getOpponents(gameState)[1]) ) :
           self.label = 'TempReaperAgent'
-          if len(self.capsuleLocations) > 0: #勇
+          if len(self.capsuleLocations) > 0: #brave
             self.tempReaperStep = 50
             self.tempReaperLoad = 50
           else: 
@@ -466,12 +466,6 @@ class GeneralAgent(DummyAgent):
           self.tempReaperStep -= 1
         print("Time used:", time.time() - startTime)
 
-        # Nextstate testing!!!!!!!!!!!!!!!!
-        # nextState = self.getSuccessor(gameState, actions[0])
-        # enemies = [gameState.getAgentState(i) for i in self.getOpponents(nextState)]
-        # enemiesDInSight = [manhattanDistance(enemy.getPosition(), self.myPosition) for enemy in enemies if enemy.getPosition() != None]
-        # if 5 in enemiesDInSight and not enemyLocation:
-        #   raise RuntimeError
 
         return actions[0]
       else:
@@ -501,22 +495,6 @@ class GeneralAgent(DummyAgent):
 
       #enemiesLocationInMySight = self.findEnemiesInMySight(enemiesLocation)
       closestEnemyDistance, closestEnemyLocation = self.findClosestDistance(gameState, enemiesLocation) if len(enemiesLocation)>0 else [-1, None]
-      #突然醒来，发现没躺在自己床上
-      # if self.locType[0]:
-      #   if len(self.lastChaseTarget) == 0 and len(self.lastEatenFood) == 0:
-      #     enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
-      #     enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
-      #     problem = GoHomeProblem(gameState, self, enemiesLocation, 2)
-      #     actions = aStarSearch(problem, foodHeuristic1, self)
-      #     return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
-      #   else:
-      #     self.lastChaseTarget = self.lastEatenFood if self.lastEatenFood else self.lastChaseTarget
-      #     self.target = self.lastChaseTarget
-      #     enemiesInSight = [enemy for enemy in enemies if enemy.getPosition() != None]
-      #     enemiesLocation = [enemy.getPosition() for enemy in enemiesInSight if enemy.scaredTimer == 0]
-      #     problem = ChaseInvadersProblem(gameState, self, enemiesLocation)
-      #     actions = aStarSearch(problem, foodHeuristic1, self)
-      #     return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
           
 
 
@@ -531,7 +509,7 @@ class GeneralAgent(DummyAgent):
 
       if len(invaders) > 0:
         print('invaders:' + str(len(invaders)))
-        # Chase the closest invader in sight 入侵者在视野范围内且自己不是白鬼
+        # Chase the closest invader in sight 
         if len(invadersInSight) > 0 and ( gameState.getAgentState(self.index).scaredTimer == 0 or closestInvaderDistance > 2):
           distance = 99999999
           position = tuple()
@@ -545,9 +523,7 @@ class GeneralAgent(DummyAgent):
           actions = aStarSearch(problem, foodHeuristic1, self)
           return actions[0] if len(actions) > 0 else 'Stop'
         
-        # 入侵者在视野范围内但自己是白鬼
-        # 距离 == 1，把invader的格子设成墙
-        # 距离 == 2，把invader周围距离为1的格子设成墙
+        # invader insight but defender is white ghost
         if len(invadersInSight) > 0 and gameState.getAgentState(self.index).scaredTimer > 0 and closestInvaderDistance <= 2:
           print('scared distance <= 2' + str(closestInvaderDistance))
           if closestInvaderDistance == 2:
@@ -562,7 +538,6 @@ class GeneralAgent(DummyAgent):
           else:
             boundary = entrance
             if self.myPosition in boundary:
-              print('gtmd')
               return random.choice(gameState.getLegalActions(self.index))
             else:
               self.target = boundary
@@ -570,7 +545,7 @@ class GeneralAgent(DummyAgent):
               actions = aStarSearch(problem, foodHeuristic1, self)
               return actions[0] if len(actions) > 0 else random.choice(gameState.getLegalActions(self.index))
           
-        # Find invaders in our land 不知道入侵者在哪，但有食物被吃了 -> 去被吃食物附近
+        # Find invaders in our land when food disappearing
         if len(self.lastEatenFood) != 0:
           self.target = self.lastEatenFood
           self.lastChaseTarget = self.target
@@ -584,7 +559,7 @@ class GeneralAgent(DummyAgent):
           actions = aStarSearch(problem, foodHeuristic1, self)
           return actions[0] if len(actions) > 0 else 'Stop'
 
-        self.target = entrance # 去入口等
+        self.target = entrance # go to boundary
         if self.myPosition in self.target: 
           return 'Stop'
         problem = GoToProblem(gameState, self)
@@ -596,13 +571,14 @@ class GeneralAgent(DummyAgent):
         if len(enemiesInSight) > 0:
           print('enemiesInSight:' + str(len(enemiesInSight)))
           print("tantou：", closestEnemyDistance)
+          # Bait
           if ( (closestEnemyDistance > 2 and closestEnemyDistance <= 5 and abs(closestEnemyLocation[1]-self.myPosition[1])<2 )\
              or closestEnemyDistance == -1) and self.locType[3]:
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
             elif not self.red and (self.myPosition[0]-1, self.myPosition[1]) not in self.walls:
               return 'West'
-          #上下摇
+          #Swing on the boundary
           tempActions = self.getLegalActionsNoCrossing(gameState)
           distance = 9999999
           res = list()
@@ -621,7 +597,7 @@ class GeneralAgent(DummyAgent):
 
         else:
           print('enemiesInSight:' + str(len(enemiesInSight)))
-          self.target = entrance # 没入侵者 -> 去入口等
+          self.target = entrance
           if self.myPosition in self.target: 
             if self.red and (self.myPosition[0]+1, self.myPosition[1]) not in self.walls:
               return 'East'
@@ -933,15 +909,6 @@ class SearchSafeFoodProblem:
               > min([self.enemyWeight-1, self.agent.distancer.getDistance((nextx, nexty), self.start[0])]):
               nextFood = set(state[1]) 
               successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
-
-
-          # if (nextx, nexty) in self.agent.homeBoundaryArea or ( (nextx, nexty) not in self.walls and (not self.enemyLocation or\
-          #   min(self.agent.distancer.getDistance((nextx, nexty), enemy) for enemy in self.enemyLocation)\
-          #     > min([self.enemyWeight-1, self.agent.distancer.getDistance((nextx, nexty), self.start[0])])) ):
-          #     nextFood = set(state[1]) 
-          #     # if (nextx, nexty) in nextFood:
-          #     #   nextFood.remove((nextx, nexty))
-          #     successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
       return successors
 
 class SearchCapsuleProblem(SearchSafeFoodProblem):
