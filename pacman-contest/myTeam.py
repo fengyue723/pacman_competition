@@ -240,7 +240,7 @@ class GeneralAgent(DummyAgent):
 
       if self.getPreviousObservation() and \
         self.distancer.getDistance(self.getPreviousObservation().getAgentPosition(self.index),\
-                                            self.myPosition)!=1:
+                                            self.myPosition)>1:
         self.enemyWeight = 2
         self.load = self.load*2//3
       elif self.enemyWeight == 3 and repeatedHistory(self.history):
