@@ -682,7 +682,8 @@ class GeneralAgent(DummyAgent):
     if action == Directions.STOP: features['stop'] = 1
     rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
     if action == rev: features['reverse'] = 1
-
+    boundaryDists = [self.distancer.getDistance(myPos, boundary) for boundary in self.enemyBoundaryArea]
+    features['boundaryDistance'] = min(boundaryDists)
     return features
 
   def getWeights(self,gameState, action):
@@ -696,8 +697,9 @@ class GeneralAgent(DummyAgent):
     return {
             'safe': 100,
             'onDefense': 50,  
-            'reverse': -10,
-            'stop': -200}
+            'reverse': 0,
+            'stop': -200,
+            'boundaryDistance': -150}
 
   def findLastEatenFood(self, gameState):
     res = list()
